@@ -3,6 +3,7 @@ services:
     build: .
     restart: unless-stopped
     environment:
+      HOST: 0.0.0.0
       PORT: 2265
       CACHE_TTL_SECONDS: 60
       PUBLIC_BASE_URL: https://price.eldery.ir

@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 2265);
 const CACHE_TTL_SECONDS = Math.max(10, Number(process.env.CACHE_TTL_SECONDS || 60));
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://price.eldery.ir";
@@ -556,6 +557,6 @@ app.use((req, res) => {
   jsonError(res, 404, "NOT_FOUND", "Endpoint not found.");
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Eldery Price API listening on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Eldery Price API listening on http://${HOST}:${PORT}`);
 });

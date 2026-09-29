@@ -35,7 +35,7 @@ cp .env.example .env
 npm start
 ```
 
-The server listens on port `2265` by default.
+The server binds to `0.0.0.0:2265` by default. Override the bind address with `HOST` and the port with `PORT`.
 
 > Node does not automatically load `.env` in this project. On a server, use your process manager/systemd environment, or start with Node's built-in env-file support:
 >
@@ -76,6 +76,7 @@ curl \
 ## Environment variables
 
 ```env
+HOST=0.0.0.0
 PORT=2265
 CACHE_TTL_SECONDS=60
 API_KEYS=
