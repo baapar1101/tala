@@ -3,9 +3,9 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      PORT: 3000
+      PORT: 2265
       CACHE_TTL_SECONDS: 60
       PUBLIC_BASE_URL: https://price.eldery.ir
       API_KEYS: ${API_KEYS:-}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:2265:2265"
