@@ -35,7 +35,7 @@ cp .env.example .env
 npm start
 ```
 
-The server listens on port `3000` by default.
+The server listens on port `2265` by default.
 
 > Node does not automatically load `.env` in this project. On a server, use your process manager/systemd environment, or start with Node's built-in env-file support:
 >
@@ -76,7 +76,7 @@ curl \
 ## Environment variables
 
 ```env
-PORT=3000
+PORT=2265
 CACHE_TTL_SECONDS=60
 API_KEYS=
 PUBLIC_BASE_URL=https://price.eldery.ir
@@ -134,7 +134,7 @@ server {
     server_name price.eldery.ir;
 
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:2265;
         proxy_http_version 1.1;
 
         proxy_set_header Host $host;
