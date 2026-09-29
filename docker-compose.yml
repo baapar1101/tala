@@ -1,0 +1,11 @@
+services:
+  price-api:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      CACHE_TTL_SECONDS: 60
+      PUBLIC_BASE_URL: https://price.eldery.ir
+      API_KEYS: ${API_KEYS:-}
+    ports:
+      - "127.0.0.1:3000:3000"
