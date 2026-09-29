@@ -1,0 +1,387 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Eldery Price API",
+    "version": "1.0.0",
+    "description": "JSON API for currency, gold and coin prices. Data is collected from public price pages and cached briefly."
+  },
+  "servers": [
+    {
+      "url": "https://price.eldery.ir"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/prices": {
+      "get": {
+        "summary": "Get all currency and gold prices",
+        "operationId": "getAllPrices",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "Combined price response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          }
+        }
+      }
+    },
+    "/api/v1/currencies": {
+      "get": {
+        "summary": "Get currency prices",
+        "operationId": "getCurrencies",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "symbols",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated symbols. Example: USD,EUR,AED",
+            "schema": {
+              "type": "string"
+            },
+            "example": "USD,EUR"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Currency prices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          }
+        }
+      }
+    },
+    "/api/v1/gold": {
+      "get": {
+        "summary": "Get gold and coin prices",
+        "operationId": "getGoldPrices",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "symbols",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated symbols. Example: GOLD_18K,EMAMI,XAU_OUNCE",
+            "schema": {
+              "type": "string"
+            },
+            "example": "GOLD_18K,EMAMI"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gold and coin prices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoldResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Only required when API_KEYS is configured on the server."
+      }
+    },
+    "responses": {
+      "UpstreamError": {
+        "description": "Upstream site could not be fetched or parsed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "CurrencyItem": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "name",
+          "buy",
+          "sell",
+          "unit"
+        ],
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "example": "USD"
+          },
+          "name": {
+            "type": "string",
+            "example": "دلار آمریکا"
+          },
+          "buy": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": 250650
+          },
+          "sell": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": 253200
+          },
+          "per_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": null
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "toman"
+            ]
+          },
+          "raw": {
+            "type": "object"
+          }
+        }
+      },
+      "GoldItem": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "name",
+          "price",
+          "unit"
+        ],
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "example": "GOLD_18K"
+          },
+          "name": {
+            "type": "string",
+            "example": "گرم طلای 18 عیار"
+          },
+          "price": {
+            "type": "number",
+            "example": 24770300
+          },
+          "change_percent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": 1.42
+          },
+          "real_price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": 25229000
+          },
+          "bubble_amount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": -458700
+          },
+          "bubble_percent": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": -1.82
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "toman",
+              "usd"
+            ]
+          },
+          "raw": {
+            "type": "object"
+          }
+        }
+      },
+      "CurrencyResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "type",
+          "count",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "type": {
+            "type": "string",
+            "const": "currencies"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "source_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cache": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyItem"
+            }
+          }
+        }
+      },
+      "GoldResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "type",
+          "count",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "type": {
+            "type": "string",
+            "const": "gold"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "source_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cache": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GoldItem"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "error"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
