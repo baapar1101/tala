@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 2265);
 const CACHE_TTL_SECONDS = Math.max(10, Number(process.env.CACHE_TTL_SECONDS || 60));
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://price.eldery.ir";
 const API_KEYS = (process.env.API_KEYS || "")
