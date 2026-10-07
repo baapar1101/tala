@@ -22,7 +22,21 @@ const API_KEYS = (process.env.API_KEYS || "")
 
 const SOURCE = {
   currencies: "https://alanchand.com/currencies-price",
-  gold: "https://alanchand.com/gold-price"
+  gold: "https://alanchand.com/gold-price",
+  arzFiats: "https://lake.arzdigital.com/web/api/v1/pub/fiats",
+  arzChart: "https://gw.arzdigital.com/muninn/v1/chart"
+};
+
+const CHART_RANGES = new Set(["1d", "7d", "1m", "3m", "6m", "1y", "all"]);
+const ARZ_UNIT_MULTIPLIERS = {
+  IQD: 100,
+  AMD: 100,
+  JPY: 100
+};
+const ARZ_COMPAT_SYMBOLS = {
+  IQD: "IQD100",
+  AMD: "AMD100",
+  JPY: "JPY100"
 };
 
 const CURRENCY_CODES = new Map(Object.entries({
@@ -152,27 +166,55 @@ function getCurrencyCode(name, index) {
   return CURRENCY_CODES.get(name) || `CUR_${String(index + 1).padStart(3, "0")}`;
 }
 
-async function fetchHtml(url) {
+async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12_000);
 
   try {
-    const response = await fetch(url, {
+    return await fetch(url, {
+      ...options,
       signal: controller.signal,
       headers: {
-        "user-agent": "ElderyPriceAPI/1.0 (+https://price.eldery.ir)",
-        "accept": "text/html,application/xhtml+xml"
+        "user-agent": "ElderyPriceAPI/1.1 (+https://price.eldery.ir)",
+        ...(options.headers || {})
       }
     });
-
-    if (!response.ok) {
-      throw new Error(`Upstream returned HTTP ${response.status}`);
-    }
-
-    return await response.text();
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchHtml(url) {
+  const response = await fetchWithTimeout(url, {
+    headers: {
+      "accept": "text/html,application/xhtml+xml"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upstream returned HTTP ${response.status}`);
+  }
+
+  return await response.text();
+}
+
+async function fetchJson(url) {
+  const response = await fetchWithTimeout(url, {
+    headers: {
+      "accept": "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upstream returned HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data || data.status !== "success") {
+    throw new Error("Upstream JSON response did not report success.");
+  }
+
+  return data;
 }
 
 function extractSourceUpdated($) {
@@ -347,22 +389,208 @@ async function cached(key, fn) {
   }
 }
 
-async function getCurrencies() {
-  return cached("currencies", async () => {
-    const html = await fetchHtml(SOURCE.currencies);
-    const parsed = parseCurrencies(html);
+function arzCompatSymbol(symbol) {
+  return ARZ_COMPAT_SYMBOLS[symbol] || symbol;
+}
 
-    if (!parsed.items.length) {
-      throw new Error("Currency table was not found or could not be parsed.");
+function arzMultiplier(symbol) {
+  return ARZ_UNIT_MULTIPLIERS[symbol] || 1;
+}
+
+function normalizeArzFiat(item) {
+  const multiplier = arzMultiplier(item.symbol);
+  const compatSymbol = arzCompatSymbol(item.symbol);
+  const referencePrice = Number(item.toman) * multiplier;
+
+  return {
+    symbol: compatSymbol,
+    source_symbol: item.symbol,
+    name: multiplier === 100 ? `100 ${item.fa_name || item.name}` : (item.fa_name || item.name),
+    buy: referencePrice,
+    sell: referencePrice,
+    reference_price: referencePrice,
+    price_mode: "reference",
+    unit: "toman",
+    source_provider: "arzdigital",
+    asset_id: item.id,
+    chart_available: true,
+    last_updated_at: item.last_updated_at || null,
+    market: {
+      usd: item.usd ?? null,
+      toman: item.toman ?? null,
+      price_change_percent_1h: item.price_change_percent_1h ?? null,
+      price_change_percent_24h: item.price_change_percent_24h ?? null,
+      price_change_percent_7d: item.price_change_percent_7d ?? null,
+      price_change_percent_30d: item.price_change_percent_30d ?? null,
+      price_change_percent_3m: item.price_change_percent_3m ?? null,
+      price_change_percent_1y: item.price_change_percent_1y ?? null,
+      price_change_percent_ytd: item.price_change_percent_ytd ?? null,
+      price_change_percent_irt_1h: item.price_change_percent_irt_1h ?? null,
+      price_change_percent_irt_24h: item.price_change_percent_irt_24h ?? null,
+      price_change_percent_irt_7d: item.price_change_percent_irt_7d ?? null,
+      price_change_percent_irt_30d: item.price_change_percent_irt_30d ?? null,
+      price_change_percent_irt_3m: item.price_change_percent_irt_3m ?? null,
+      price_change_percent_irt_1y: item.price_change_percent_irt_1y ?? null,
+      price_change_percent_irt_ytd: item.price_change_percent_irt_ytd ?? null
+    },
+    raw: item
+  };
+}
+
+async function getArzFiats() {
+  return cached("arz-fiats", async () => {
+    const payload = await fetchJson(SOURCE.arzFiats);
+    const rawItems = Array.isArray(payload.data) ? payload.data : [];
+
+    if (!rawItems.length) {
+      throw new Error("ArzDigital fiat list is empty.");
     }
 
     return {
-      source: SOURCE.currencies,
-      source_updated_at: parsed.source_updated_at,
+      provider: "arzdigital",
+      source: SOURCE.arzFiats,
       fetched_at: new Date().toISOString(),
-      items: parsed.items
+      count: rawItems.length,
+      raw_items: rawItems,
+      items: rawItems.map(normalizeArzFiat)
     };
   });
+}
+
+function enrichPrimaryWithArz(primaryItem, fallbackMap) {
+  const fallback = fallbackMap.get(primaryItem.symbol);
+  if (!fallback) {
+    return {
+      ...primaryItem,
+      source_provider: "alanchand",
+      price_mode: "bid_ask",
+      chart_available: false
+    };
+  }
+
+  return {
+    ...primaryItem,
+    source_provider: "alanchand",
+    price_mode: "bid_ask",
+    asset_id: fallback.asset_id,
+    chart_available: true,
+    last_updated_at: fallback.last_updated_at,
+    market: fallback.market
+  };
+}
+
+async function getCurrencies() {
+  return cached("currencies", async () => {
+    let primary = null;
+    let fallback = null;
+    let primaryError = null;
+    let fallbackError = null;
+
+    try {
+      const html = await fetchHtml(SOURCE.currencies);
+      const parsed = parseCurrencies(html);
+
+      if (!parsed.items.length) {
+        throw new Error("Currency table was not found or could not be parsed.");
+      }
+
+      primary = {
+        source: SOURCE.currencies,
+        source_updated_at: parsed.source_updated_at,
+        items: parsed.items
+      };
+    } catch (error) {
+      primaryError = error;
+    }
+
+    try {
+      fallback = await getArzFiats();
+    } catch (error) {
+      fallbackError = error;
+    }
+
+    if (!primary && !fallback) {
+      throw new Error(
+        `All currency providers failed. primary=${primaryError?.message || "unknown"}; fallback=${fallbackError?.message || "unknown"}`
+      );
+    }
+
+    const fallbackItems = fallback?.items || [];
+    const fallbackMap = new Map(fallbackItems.map((item) => [item.symbol, item]));
+    const merged = new Map();
+
+    for (const item of fallbackItems) {
+      merged.set(item.symbol, item);
+    }
+
+    if (primary) {
+      for (const item of primary.items) {
+        merged.set(item.symbol, enrichPrimaryWithArz(item, fallbackMap));
+      }
+    }
+
+    const items = [...merged.values()];
+    const primarySymbols = new Set(primary?.items.map((item) => item.symbol) || []);
+    const fallbackOnlyCount = items.filter(
+      (item) => item.source_provider === "arzdigital" && !primarySymbols.has(item.symbol)
+    ).length;
+
+    return {
+      provider: primary ? (fallback ? "alanchand+arzdigital" : "alanchand") : "arzdigital",
+      failover_used: !primary,
+      coverage_augmented: Boolean(primary && fallbackOnlyCount > 0),
+      fallback_only_count: fallbackOnlyCount,
+      primary_error: primaryError?.message || null,
+      fallback_error: fallbackError?.message || null,
+      source: primary?.source || fallback?.source,
+      sources: [
+        ...(primary ? [{ provider: "alanchand", url: primary.source, role: "primary" }] : []),
+        ...(fallback ? [{ provider: "arzdigital", url: fallback.source, role: primary ? "fallback+enrichment" : "failover" }] : [])
+      ],
+      source_updated_at: primary?.source_updated_at || null,
+      fetched_at: new Date().toISOString(),
+      items
+    };
+  });
+}
+
+async function getArzChartByAssetId(assetId, range) {
+  if (!CHART_RANGES.has(range)) {
+    throw new Error(`Unsupported chart range: ${range}`);
+  }
+
+  return cached(`arz-chart:${assetId}:${range}`, async () => {
+    const url = `${SOURCE.arzChart}?id=${encodeURIComponent(assetId)}&range=${encodeURIComponent(range)}`;
+    const payload = await fetchJson(url);
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+
+    return {
+      provider: "arzdigital",
+      source: url,
+      range,
+      asset_id: Number(assetId),
+      fetched_at: new Date().toISOString(),
+      meta: payload.meta || {},
+      data: rows.map((row) => ({
+        timestamp_ms: Number(row[0]),
+        timestamp: new Date(Number(row[0])).toISOString(),
+        usd: row[1] == null ? null : Number(row[1]),
+        toman: row[2] == null ? null : Number(row[2]),
+        auxiliary: row[3] == null ? null : Number(row[3]),
+        raw: row
+      }))
+    };
+  });
+}
+
+async function findArzFiatBySymbol(symbol) {
+  const wanted = String(symbol || "").trim().toUpperCase();
+  const fiats = await getArzFiats();
+  return fiats.raw_items.find((item) => {
+    const raw = String(item.symbol || "").toUpperCase();
+    const compat = arzCompatSymbol(raw);
+    return raw === wanted || compat === wanted;
+  }) || null;
 }
 
 async function getGold() {
@@ -449,6 +677,9 @@ app.get("/", (req, res) => {
     endpoints: {
       prices: "/api/v1/prices",
       currencies: "/api/v1/currencies",
+      fiats: "/api/v1/fiats",
+      fiat: "/api/v1/fiats/:symbol",
+      fiat_chart: "/api/v1/fiats/:symbol/chart?range=1m",
       gold: "/api/v1/gold",
       health: "/health",
       openapi: "/openapi.json",
@@ -491,7 +722,14 @@ app.get("/api/v1/currencies", async (req, res) => {
       ok: true,
       type: "currencies",
       count: items.length,
+      provider: data.provider,
+      failover_used: data.failover_used,
+      coverage_augmented: data.coverage_augmented,
+      fallback_only_count: data.fallback_only_count,
+      primary_error: data.primary_error,
+      fallback_error: data.fallback_error,
       source: data.source,
+      sources: data.sources,
       source_updated_at: data.source_updated_at,
       fetched_at: data.fetched_at,
       cache: data.cache,
@@ -499,7 +737,83 @@ app.get("/api/v1/currencies", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    jsonError(res, 502, "UPSTREAM_ERROR", "Could not fetch or parse currency prices.");
+    jsonError(res, 502, "UPSTREAM_ERROR", "Could not fetch currency prices from any provider.");
+  }
+});
+
+app.get("/api/v1/fiats", async (req, res) => {
+  try {
+    const fiats = await getArzFiats();
+    const symbols = requestedSymbols(req);
+    const wanted = new Set(symbols);
+    const data = symbols.length
+      ? fiats.raw_items.filter((item) => wanted.has(String(item.symbol).toUpperCase()) || wanted.has(arzCompatSymbol(String(item.symbol).toUpperCase())))
+      : fiats.raw_items;
+
+    res.json({
+      ok: true,
+      type: "fiats",
+      provider: fiats.provider,
+      source: fiats.source,
+      count: data.length,
+      fetched_at: fiats.fetched_at,
+      cache: fiats.cache,
+      supported_chart_ranges: [...CHART_RANGES],
+      data
+    });
+  } catch (error) {
+    console.error(error);
+    jsonError(res, 502, "UPSTREAM_ERROR", "Could not fetch ArzDigital fiat metadata.");
+  }
+});
+
+app.get("/api/v1/fiats/:symbol", async (req, res) => {
+  try {
+    const item = await findArzFiatBySymbol(req.params.symbol);
+    if (!item) {
+      return jsonError(res, 404, "FIAT_NOT_FOUND", "Fiat symbol not found.");
+    }
+
+    res.json({
+      ok: true,
+      provider: "arzdigital",
+      source: SOURCE.arzFiats,
+      supported_chart_ranges: [...CHART_RANGES],
+      data: item
+    });
+  } catch (error) {
+    console.error(error);
+    jsonError(res, 502, "UPSTREAM_ERROR", "Could not fetch fiat metadata.");
+  }
+});
+
+app.get("/api/v1/fiats/:symbol/chart", async (req, res) => {
+  try {
+    const range = String(req.query.range || "1m");
+    if (!CHART_RANGES.has(range)) {
+      return jsonError(
+        res,
+        400,
+        "INVALID_RANGE",
+        `range must be one of: ${[...CHART_RANGES].join(", ")}`
+      );
+    }
+
+    const item = await findArzFiatBySymbol(req.params.symbol);
+    if (!item) {
+      return jsonError(res, 404, "FIAT_NOT_FOUND", "Fiat symbol not found.");
+    }
+
+    const chart = await getArzChartByAssetId(item.id, range);
+    res.json({
+      ok: true,
+      symbol: item.symbol,
+      name: item.fa_name || item.name,
+      ...chart
+    });
+  } catch (error) {
+    console.error(error);
+    jsonError(res, 502, "UPSTREAM_ERROR", "Could not fetch fiat chart.");
   }
 });
 
@@ -534,7 +848,11 @@ app.get("/api/v1/prices", async (req, res) => {
       fetched_at: new Date().toISOString(),
       currencies: {
         count: currencies.items.length,
+        provider: currencies.provider,
+        failover_used: currencies.failover_used,
+        coverage_augmented: currencies.coverage_augmented,
         source: currencies.source,
+        sources: currencies.sources,
         source_updated_at: currencies.source_updated_at,
         cache: currencies.cache,
         data: currencies.items
