@@ -47,6 +47,18 @@ For local development:
 node --env-file=.env --watch src/server.js
 ```
 
+## Provider failover
+
+Fiat currencies use an automatic provider chain:
+
+- Primary: `https://alanchand.com/currencies-price`
+- Fallback/enrichment: `https://lake.arzdigital.com/web/api/v1/pub/fiats`
+- Historical charts: `https://gw.arzdigital.com/muninn/v1/chart?id=<asset_id>&range=<range>`
+
+If the primary currency page is unavailable or parsing fails, the API switches to ArzDigital. ArzDigital supplies a single reference `toman` price, so fallback items are marked with `price_mode: "reference"`.
+
+When both providers work, the primary bid/ask data is kept and ArzDigital enriches it with asset IDs, market change data, chart support, and currencies that are missing from the primary table.
+
 ## Endpoints
 
 - `GET /`
@@ -54,6 +66,10 @@ node --env-file=.env --watch src/server.js
 - `GET /api/v1/prices`
 - `GET /api/v1/currencies`
 - `GET /api/v1/currencies?symbols=USD,EUR`
+- `GET /api/v1/fiats`
+- `GET /api/v1/fiats?symbols=USD,EUR`
+- `GET /api/v1/fiats/USD`
+- `GET /api/v1/fiats/USD/chart?range=1m`
 - `GET /api/v1/gold`
 - `GET /api/v1/gold?symbols=GOLD_18K,EMAMI`
 - `GET /openapi.json`
@@ -185,3 +201,20 @@ Give agents either:
 The live Swagger UI is:
 
 `https://price.eldery.ir/docs`
+
+## Fiat chart examples
+
+Supported chart ranges are:
+
+`1d`, `7d`, `1m`, `3m`, `6m`, `1y`, `all`
+
+Examples:
+
+```bash
+curl "https://price.eldery.ir/api/v1/fiats/USD"
+curl "https://price.eldery.ir/api/v1/fiats/USD/chart?range=1m"
+curl "https://price.eldery.ir/api/v1/fiats/EUR/chart?range=1y"
+curl "https://price.eldery.ir/api/v1/fiats/AED/chart?range=all"
+```
+
+The fiat metadata endpoint returns the complete upstream fiat fields, including ATH/ATL ranges and price-change percentages. The chart endpoint preserves raw chart rows while also providing normalized timestamp, USD and toman values.
