@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Eldery Price API",
-    "version": "1.0.0",
-    "description": "JSON API for currency, gold and coin prices. Data is collected from public price pages and cached briefly."
+    "version": "1.1.0",
+    "description": "JSON API for currency, gold and coin prices with ArzDigital fiat failover, enrichment, and historical chart endpoints."
   },
   "servers": [
     {
@@ -133,6 +133,149 @@
           }
         }
       }
+    },
+    "/api/v1/fiats": {
+      "get": {
+        "summary": "Get full ArzDigital fiat metadata",
+        "operationId": "getFiats",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "symbols",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated symbols. Example: USD,EUR,AED",
+            "schema": {
+              "type": "string"
+            },
+            "example": "USD,EUR"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fiat metadata including asset id, toman/USD price, change percentages, ATH/ATL and chart capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiatListResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          }
+        }
+      }
+    },
+    "/api/v1/fiats/{symbol}": {
+      "get": {
+        "summary": "Get one fiat asset and all available metadata",
+        "operationId": "getFiat",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "USD"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fiat asset metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Fiat not found"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          }
+        }
+      }
+    },
+    "/api/v1/fiats/{symbol}/chart": {
+      "get": {
+        "summary": "Get historical fiat chart data",
+        "operationId": "getFiatChart",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "USD"
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "description": "Historical range",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1d",
+                "7d",
+                "1m",
+                "3m",
+                "6m",
+                "1y",
+                "all"
+              ],
+              "default": "1m"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historical series plus upstream low/high metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiatChartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid range"
+          },
+          "404": {
+            "description": "Fiat not found"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -204,6 +347,51 @@
           },
           "raw": {
             "type": "object"
+          },
+          "reference_price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Reference price used by the fallback provider."
+          },
+          "price_mode": {
+            "type": "string",
+            "enum": [
+              "bid_ask",
+              "reference"
+            ],
+            "description": "bid_ask for primary data; reference when ArzDigital is supplying the fallback price."
+          },
+          "source_provider": {
+            "type": "string",
+            "enum": [
+              "alanchand",
+              "arzdigital"
+            ]
+          },
+          "asset_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "ArzDigital asset id when available."
+          },
+          "chart_available": {
+            "type": "boolean"
+          },
+          "last_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "market": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "ArzDigital enrichment such as USD value and price-change percentages."
           }
         }
       },
@@ -310,6 +498,37 @@
             "items": {
               "$ref": "#/components/schemas/CurrencyItem"
             }
+          },
+          "provider": {
+            "type": "string",
+            "example": "alanchand+arzdigital"
+          },
+          "failover_used": {
+            "type": "boolean"
+          },
+          "coverage_augmented": {
+            "type": "boolean"
+          },
+          "fallback_only_count": {
+            "type": "integer"
+          },
+          "primary_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fallback_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           }
         }
       },
@@ -378,6 +597,249 @@
               "message": {
                 "type": "string"
               }
+            }
+          }
+        }
+      },
+      "FiatAsset": {
+        "type": "object",
+        "required": [
+          "id",
+          "symbol",
+          "toman",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 24201
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "symbol": {
+            "type": "string",
+            "example": "USD"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "United States Dollar"
+          },
+          "fa_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "دلار"
+          },
+          "logo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": 1
+          },
+          "toman": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "example": 269000
+          },
+          "type": {
+            "type": "string",
+            "example": "fiat"
+          },
+          "last_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ath_atl": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      },
+      "FiatListResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "type",
+          "provider",
+          "count",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "type": {
+            "type": "string",
+            "const": "fiats"
+          },
+          "provider": {
+            "type": "string",
+            "const": "arzdigital"
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cache": {
+            "type": "string"
+          },
+          "supported_chart_ranges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "1d",
+                "7d",
+                "1m",
+                "3m",
+                "6m",
+                "1y",
+                "all"
+              ]
+            }
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FiatAsset"
+            }
+          }
+        }
+      },
+      "ChartPoint": {
+        "type": "object",
+        "required": [
+          "timestamp_ms",
+          "timestamp",
+          "raw"
+        ],
+        "properties": {
+          "timestamp_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "usd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "toman": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "auxiliary": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Fourth upstream chart value preserved numerically because the upstream public response does not name the column."
+          },
+          "raw": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "FiatChartResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "symbol",
+          "provider",
+          "range",
+          "asset_id",
+          "meta",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "symbol": {
+            "type": "string",
+            "example": "USD"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "const": "arzdigital"
+          },
+          "source": {
+            "type": "string",
+            "format": "uri"
+          },
+          "range": {
+            "type": "string",
+            "enum": [
+              "1d",
+              "7d",
+              "1m",
+              "3m",
+              "6m",
+              "1y",
+              "all"
+            ]
+          },
+          "asset_id": {
+            "type": "integer",
+            "example": 24201
+          },
+          "fetched_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "meta": {
+            "type": "object"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChartPoint"
             }
           }
         }
