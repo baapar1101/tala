@@ -8,35 +8,97 @@ Machine-readable OpenAPI schema:
 
 `https://price.eldery.ir/openapi.json`
 
+## Provider policy
+
+Currency pricing uses a provider chain:
+
+1. **Primary:** Alanchand HTML currency table.
+2. **Fallback / enrichment:** ArzDigital public fiat feed.
+3. If the primary provider fails or cannot be parsed, ArzDigital automatically supplies fiat prices.
+4. When the primary provider works, ArzDigital is still used to add asset IDs, market metadata, chart availability, and fiat currencies missing from the primary source.
+
+Inspect these response fields:
+
+- `provider`
+- `failover_used`
+- `coverage_augmented`
+- `primary_error`
+- `fallback_error`
+- `sources`
+
+When an item has `price_mode: "bid_ask"`, `buy` and `sell` came from the primary provider.
+
+When an item has `price_mode: "reference"`, ArzDigital supplied a single reference price. For compatibility, `buy` and `sell` are both set to that reference price; do not describe it as a real market bid/ask spread.
+
 ## Recommended endpoints
 
 ### All prices
 
 `GET /api/v1/prices`
 
-Use when the agent needs both currency and gold/coin data in one request.
+Returns currencies plus gold/coin data.
 
-### Currencies
+### Currency prices with automatic failover
 
 `GET /api/v1/currencies`
 
-Optional filter:
+Filter examples:
 
 `GET /api/v1/currencies?symbols=USD,EUR,AED`
 
-Common symbols:
+`GET /api/v1/currencies?symbols=USD`
 
-- `USD` — دلار آمریکا
-- `EUR` — یورو
-- `AED` — درهم
-- `TRY` — لیر ترکیه
-- `GBP` — پوند انگلیس
-- `CAD` — دلار کانادا
-- `AUD` — دلار استرالیا
-- `CHF` — فرانک سوئیس
-- `CNY` — یوان چین
+### Full fiat metadata
 
-Currency `buy` and `sell` values are normalized numbers in **toman**.
+`GET /api/v1/fiats`
+
+This exposes the complete ArzDigital fiat objects, including fields such as:
+
+- `id`
+- `symbol`
+- `usd`
+- `toman`
+- price-change percentages
+- `last_updated_at`
+- `ath_atl`
+- logo/channel/topic metadata when supplied upstream
+
+Filter:
+
+`GET /api/v1/fiats?symbols=USD,EUR`
+
+Single asset:
+
+`GET /api/v1/fiats/USD`
+
+### Historical chart
+
+`GET /api/v1/fiats/USD/chart?range=1m`
+
+Supported ranges:
+
+- `1d`
+- `7d`
+- `1m`
+- `3m`
+- `6m`
+- `1y`
+- `all`
+
+The response preserves upstream `meta` low/high information and returns normalized chart rows:
+
+```json
+{
+  "timestamp_ms": 1791345600000,
+  "timestamp": "2026-10-07T04:00:00.000Z",
+  "usd": 1,
+  "toman": 269000,
+  "auxiliary": 0.000011879111062612742,
+  "raw": [1791345600000, 1, "269000", "0.000011879111062612742308"]
+}
+```
+
+The fourth chart column is deliberately named `auxiliary` because the public upstream response does not provide a field name for that column. Use `raw` when exact upstream preservation matters.
 
 ### Gold and coins
 
@@ -46,20 +108,7 @@ Optional filter:
 
 `GET /api/v1/gold?symbols=GOLD_18K,EMAMI`
 
-Common symbols:
-
-- `GOLD_18K` — گرم طلای ۱۸ عیار
-- `MELTED_GOLD` — آبشده / مثقال
-- `EMAMI` — سکه امامی
-- `BAHAR` — سکه بهار آزادی
-- `HALF_COIN` — نیم سکه
-- `QUARTER_COIN` — ربع سکه
-- `GRAM_COIN` — سکه گرمی
-- `XAU_OUNCE` — انس طلا
-- `XAG_OUNCE` — انس نقره
-
-Iranian gold/coin items use `unit: "toman"`.
-International ounce items use `unit: "usd"`.
+ArzDigital fiat failover applies to **fiat currencies**, not to the gold/coin endpoint.
 
 ## Authentication
 
@@ -71,44 +120,59 @@ If the server administrator sets `API_KEYS`, send:
 
 ## Agent behavior
 
-1. Prefer normalized numeric fields (`buy`, `sell`, `price`, `change_percent`, `bubble_percent`) over `raw`.
-2. Check `unit` before doing calculations.
-3. Use `source_updated_at` to report the upstream update label.
-4. Use `fetched_at` as the API fetch timestamp.
-5. Do not interpret `cache: "HIT"` as stale data; it only means the upstream fetch was reused within the configured short cache window.
-6. If the API returns HTTP 502, treat upstream price data as temporarily unavailable and do not invent a price.
+1. Prefer normalized numeric fields over `raw`.
+2. Check `unit` before calculations.
+3. Check `price_mode` before describing buy/sell pricing.
+4. If `failover_used: true`, explicitly treat currency prices as fallback reference data.
+5. Use `asset_id` or the fiat symbol to request chart history.
+6. Use `last_updated_at` for ArzDigital freshness and `fetched_at` for API fetch time.
+7. Do not interpret `cache: "HIT"` as stale; it only indicates reuse inside the configured short cache window.
+8. If every currency provider fails, the currency endpoint returns HTTP 502; do not invent a price.
 
-## Example
+## Example: USD price
 
 Request:
 
-`GET https://price.eldery.ir/api/v1/currencies?symbols=USD,EUR`
+`GET https://price.eldery.ir/api/v1/currencies?symbols=USD`
 
-Typical response shape:
+Typical primary-provider item:
 
 ```json
 {
-  "ok": true,
-  "type": "currencies",
-  "count": 2,
-  "source": "https://alanchand.com/currencies-price",
-  "source_updated_at": "۱۳:۲۵ سه‌شنبه ۷ مهر ۱۴۰۵",
-  "fetched_at": "2026-09-29T10:00:00.000Z",
-  "cache": "HIT",
-  "data": [
-    {
-      "symbol": "USD",
-      "name": "دلار آمریکا",
-      "buy": 250650,
-      "sell": 253200,
-      "per_usd": null,
-      "unit": "toman",
-      "raw": {
-        "buy": "۲۵۰,۶۵۰",
-        "sell": "۲۵۳,۲۰۰",
-        "per_usd": "-"
-      }
-    }
-  ]
+  "symbol": "USD",
+  "name": "دلار آمریکا",
+  "buy": 268500,
+  "sell": 269000,
+  "unit": "toman",
+  "source_provider": "alanchand",
+  "price_mode": "bid_ask",
+  "asset_id": 24201,
+  "chart_available": true
 }
 ```
+
+Typical fallback item:
+
+```json
+{
+  "symbol": "USD",
+  "source_symbol": "USD",
+  "name": "دلار",
+  "buy": 269000,
+  "sell": 269000,
+  "reference_price": 269000,
+  "price_mode": "reference",
+  "unit": "toman",
+  "source_provider": "arzdigital",
+  "asset_id": 24201,
+  "chart_available": true
+}
+```
+
+## Example: chart
+
+`GET https://price.eldery.ir/api/v1/fiats/USD/chart?range=1m`
+
+For the longest available range:
+
+`GET https://price.eldery.ir/api/v1/fiats/USD/chart?range=all`
