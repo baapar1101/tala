@@ -672,7 +672,7 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     name: "Eldery Price API",
-    version: "1.0.0",
+    version: "1.1.0",
     base_url: PUBLIC_BASE_URL,
     endpoints: {
       prices: "/api/v1/prices",
