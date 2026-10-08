@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 2265);
 const CACHE_TTL_SECONDS = Math.max(10, Number(process.env.CACHE_TTL_SECONDS || 60));
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://price.eldery.ir";
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://price.shoogle.ir";
 const API_KEYS = (process.env.API_KEYS || "")
   .split(",")
   .map((x) => x.trim())
@@ -175,7 +175,7 @@ async function fetchWithTimeout(url, options = {}) {
       ...options,
       signal: controller.signal,
       headers: {
-        "user-agent": "ElderyPriceAPI/1.1 (+https://price.eldery.ir)",
+        "user-agent": "ShooglePriceAPI/1.1 (+https://price.shoogle.ir)",
         ...(options.headers || {})
       }
     });
@@ -671,7 +671,7 @@ openapi.servers = [{ url: PUBLIC_BASE_URL }];
 app.get("/", (req, res) => {
   res.json({
     ok: true,
-    name: "Eldery Price API",
+    name: "Shoogle Price API",
     version: "1.1.0",
     base_url: PUBLIC_BASE_URL,
     endpoints: {
@@ -709,7 +709,7 @@ app.get("/AGENTS.md", (req, res) => {
 
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapi, {
   explorer: true,
-  customSiteTitle: "Eldery Price API Docs"
+  customSiteTitle: "Shoogle Price API Docs"
 }));
 
 app.get("/api/v1/currencies", async (req, res) => {
@@ -877,7 +877,7 @@ app.use((req, res) => {
 
 if (!process.env.VERCEL) {
   app.listen(PORT, HOST, () => {
-    console.log(`Eldery Price API listening on http://${HOST}:${PORT}`);
+    console.log(`Shoogle Price API listening on http://${HOST}:${PORT}`);
   });
 }
 
