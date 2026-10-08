@@ -875,6 +875,10 @@ app.use((req, res) => {
   jsonError(res, 404, "NOT_FOUND", "Endpoint not found.");
 });
 
-app.listen(PORT, HOST, () => {
-  console.log(`Eldery Price API listening on http://${HOST}:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, HOST, () => {
+    console.log(`Eldery Price API listening on http://${HOST}:${PORT}`);
+  });
+}
+
+export default app;
