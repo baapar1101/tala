@@ -218,3 +218,10 @@ curl "https://price.shoogle.ir/api/v1/fiats/AED/chart?range=all"
 ```
 
 The fiat metadata endpoint returns the complete upstream fiat fields, including ATH/ATL ranges and price-change percentages. The chart endpoint preserves raw chart rows while also providing normalized timestamp, USD and toman values.
+
+## Deployment environments
+
+- **Own server (Node.js / Docker / Nginx):** `https://price.shoogle.ir` is the canonical URL. Deploy the GitHub repository to your server and configure its DNS and HTTPS there.
+- **Vercel:** `https://mark-price.vercel.app` is the separate Vercel deployment of the same repository. Set `PUBLIC_BASE_URL=https://mark-price.vercel.app` in Vercel project environment variables.
+
+Do not point `price.shoogle.ir` to Vercel or configure it as a Vercel project domain. The server and Vercel deployments have separate infrastructure and public URLs.
