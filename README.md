@@ -1,10 +1,10 @@
-# Eldery Price API
+# Shoogle Price API
 
 Node.js JSON API for currency, gold and coin prices.
 
 Production URL target:
 
-`https://price.eldery.ir`
+`https://price.shoogle.ir`
 
 ## Features
 
@@ -25,7 +25,7 @@ Production URL target:
 - Node.js 20+
 - npm
 - A Linux server for production deployment
-- DNS record for `price.eldery.ir`
+- DNS record for `price.shoogle.ir`
 
 ## Install
 
@@ -78,7 +78,7 @@ When both providers work, the primary bid/ask data is kept and ArzDigital enrich
 ## Example
 
 ```bash
-curl "https://price.eldery.ir/api/v1/currencies?symbols=USD,EUR"
+curl "https://price.shoogle.ir/api/v1/currencies?symbols=USD,EUR"
 ```
 
 If `API_KEYS` is enabled:
@@ -86,7 +86,7 @@ If `API_KEYS` is enabled:
 ```bash
 curl \
   -H "x-api-key: YOUR_KEY" \
-  "https://price.eldery.ir/api/v1/gold?symbols=GOLD_18K,EMAMI"
+  "https://price.shoogle.ir/api/v1/gold?symbols=GOLD_18K,EMAMI"
 ```
 
 ## Environment variables
@@ -96,7 +96,7 @@ HOST=0.0.0.0
 PORT=2265
 CACHE_TTL_SECONDS=60
 API_KEYS=
-PUBLIC_BASE_URL=https://price.eldery.ir
+PUBLIC_BASE_URL=https://price.shoogle.ir
 ```
 
 `API_KEYS` is optional. Example:
@@ -109,21 +109,21 @@ API_KEYS=my-secret-key-1,my-secret-key-2
 
 Assume the app is installed at:
 
-`/opt/eldery-price-api`
+`/opt/shoogle-price-api`
 
-Create `/etc/systemd/system/eldery-price-api.service`:
+Create `/etc/systemd/system/shoogle-price-api.service`:
 
 ```ini
 [Unit]
-Description=Eldery Price API
+Description=Shoogle Price API
 After=network.target
 
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/opt/eldery-price-api
-EnvironmentFile=/opt/eldery-price-api/.env
-ExecStart=/usr/bin/node /opt/eldery-price-api/src/server.js
+WorkingDirectory=/opt/shoogle-price-api
+EnvironmentFile=/opt/shoogle-price-api/.env
+ExecStart=/usr/bin/node /opt/shoogle-price-api/src/server.js
 Restart=always
 RestartSec=3
 
@@ -135,20 +135,20 @@ Then:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now eldery-price-api
-sudo systemctl status eldery-price-api
+sudo systemctl enable --now shoogle-price-api
+sudo systemctl status shoogle-price-api
 ```
 
-## Nginx for price.eldery.ir
+## Nginx for price.shoogle.ir
 
 Create:
 
-`/etc/nginx/sites-available/price.eldery.ir`
+`/etc/nginx/sites-available/price.shoogle.ir`
 
 ```nginx
 server {
     listen 80;
-    server_name price.eldery.ir;
+    server_name price.shoogle.ir;
 
     location / {
         proxy_pass http://127.0.0.1:2265;
@@ -168,7 +168,7 @@ server {
 Enable it:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/price.eldery.ir /etc/nginx/sites-enabled/price.eldery.ir
+sudo ln -s /etc/nginx/sites-available/price.shoogle.ir /etc/nginx/sites-enabled/price.shoogle.ir
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -176,7 +176,7 @@ sudo systemctl reload nginx
 After the DNS `A`/`AAAA` record points to your server, issue HTTPS with Certbot:
 
 ```bash
-sudo certbot --nginx -d price.eldery.ir
+sudo certbot --nginx -d price.shoogle.ir
 ```
 
 ## Cloudflare note
@@ -195,12 +195,12 @@ Respect the source website's terms, access limits and attribution requirements.
 
 Give agents either:
 
-- `https://price.eldery.ir/openapi.json`
-- `https://price.eldery.ir/AGENTS.md` if you choose to host that file separately
+- `https://price.shoogle.ir/openapi.json`
+- `https://price.shoogle.ir/AGENTS.md` if you choose to host that file separately
 
 The live Swagger UI is:
 
-`https://price.eldery.ir/docs`
+`https://price.shoogle.ir/docs`
 
 ## Fiat chart examples
 
@@ -211,10 +211,10 @@ Supported chart ranges are:
 Examples:
 
 ```bash
-curl "https://price.eldery.ir/api/v1/fiats/USD"
-curl "https://price.eldery.ir/api/v1/fiats/USD/chart?range=1m"
-curl "https://price.eldery.ir/api/v1/fiats/EUR/chart?range=1y"
-curl "https://price.eldery.ir/api/v1/fiats/AED/chart?range=all"
+curl "https://price.shoogle.ir/api/v1/fiats/USD"
+curl "https://price.shoogle.ir/api/v1/fiats/USD/chart?range=1m"
+curl "https://price.shoogle.ir/api/v1/fiats/EUR/chart?range=1y"
+curl "https://price.shoogle.ir/api/v1/fiats/AED/chart?range=all"
 ```
 
 The fiat metadata endpoint returns the complete upstream fiat fields, including ATH/ATL ranges and price-change percentages. The chart endpoint preserves raw chart rows while also providing normalized timestamp, USD and toman values.
