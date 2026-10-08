@@ -1,12 +1,12 @@
-# Eldery Price API — Agent Guide
+# Shoogle Price API — Agent Guide
 
 Base URL:
 
-`https://price.eldery.ir`
+`https://price.shoogle.ir`
 
 Machine-readable OpenAPI schema:
 
-`https://price.eldery.ir/openapi.json`
+`https://price.shoogle.ir/openapi.json`
 
 ## Provider policy
 
@@ -133,7 +133,7 @@ If the server administrator sets `API_KEYS`, send:
 
 Request:
 
-`GET https://price.eldery.ir/api/v1/currencies?symbols=USD`
+`GET https://price.shoogle.ir/api/v1/currencies?symbols=USD`
 
 Typical primary-provider item:
 
@@ -171,8 +171,8 @@ Typical fallback item:
 
 ## Example: chart
 
-`GET https://price.eldery.ir/api/v1/fiats/USD/chart?range=1m`
+`GET https://price.shoogle.ir/api/v1/fiats/USD/chart?range=1m`
 
 For the longest available range:
 
-`GET https://price.eldery.ir/api/v1/fiats/USD/chart?range=all`
+`GET https://price.shoogle.ir/api/v1/fiats/USD/chart?range=all`
