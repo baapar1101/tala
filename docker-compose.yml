@@ -6,7 +6,7 @@ services:
       HOST: 0.0.0.0
       PORT: 2265
       CACHE_TTL_SECONDS: 60
-      PUBLIC_BASE_URL: https://price.eldery.ir
+      PUBLIC_BASE_URL: https://price.shoogle.ir
       API_KEYS: ${API_KEYS:-}
     ports:
       - "127.0.0.1:2265:2265"
