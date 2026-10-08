@@ -1,13 +1,13 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Eldery Price API",
+    "title": "Shoogle Price API",
     "version": "1.1.0",
     "description": "JSON API for currency, gold and coin prices with ArzDigital fiat failover, enrichment, and historical chart endpoints."
   },
   "servers": [
     {
-      "url": "https://price.eldery.ir"
+      "url": "https://price.shoogle.ir"
     }
   ],
   "paths": {
