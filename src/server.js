@@ -825,7 +825,7 @@ app.get("/api/v1/fiats/:symbol/chart", async (req, res) => {
 // Historic snapshots are collected by GitHub Actions from published market quotes.
 // This source contains real observations only; it does not reconstruct prior years.
 async function getArchivedHistory(symbol, range) {
-  const url = "https://raw.githubusercontent.com/baapar1101/tala/main/data/market-history.json";
+  const url = "https://raw.githubusercontent.com/baapar1101/tala/market-history/data/market-history.json";
   const response = await fetchWithTimeout(url, {headers: {accept:"application/json"}});
   if (!response.ok) throw new Error("Archive unavailable: HTTP " + response.status);
   const archive = await response.json();
