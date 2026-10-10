@@ -817,6 +817,38 @@ app.get("/api/v1/fiats/:symbol/chart", async (req, res) => {
   }
 });
 
+// Historical prices are available from ArzDigital for supported fiat symbols.
+// Do not fabricate gold/coin history: the current gold provider only exposes spot prices.
+app.get("/api/v1/history/:symbol", async (req, res) => {
+  const symbol = String(req.params.symbol || "").trim().toUpperCase();
+  const range = String(req.query.range || "7d");
+  if (!CHART_RANGES.has(range)) {
+    return jsonError(res, 400, "INVALID_RANGE", "Supported ranges: 1d, 7d, 1m, 3m, 6m, 1y, all");
+  }
+  try {
+    const fiat = await findArzFiatBySymbol(symbol);
+    if (!fiat) return jsonError(res, 404, "HISTORY_UNAVAILABLE", "Historical data is only available for supported fiat symbols.");
+    const chart = await getArzChartByAssetId(fiat.id, range);
+    const points = chart.data.filter(p => Number.isFinite(p.timestamp_ms) && Number.isFinite(p.toman) && p.toman > 0)
+      .sort((a, b) => a.timestamp_ms - b.timestamp_ms)
+      .map(p => ({ timestamp_ms: p.timestamp_ms, timestamp: p.timestamp, price: p.toman }));
+    const first = points[0]?.price ?? null;
+    const last = points[points.length - 1]?.price ?? null;
+    const change = first && last ? ((last - first) / first) * 100 : null;
+    res.json({
+      ok: true, symbol, name: fiat.fa_name || fiat.name || symbol, range, unit: "toman",
+      source: chart.source, provider: chart.provider, fetched_at: chart.fetched_at,
+      count: points.length,
+      summary: { first, last, min: points.length ? Math.min(...points.map(p => p.price)) : null,
+        max: points.length ? Math.max(...points.map(p => p.price)) : null, change_percent: change },
+      data: points
+    });
+  } catch (error) {
+    console.error(error);
+    jsonError(res, 502, "UPSTREAM_ERROR", "Could not fetch historical fiat prices.");
+  }
+});
+
 app.get("/api/v1/gold", async (req, res) => {
   try {
     const data = await getGold();
