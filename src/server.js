@@ -682,6 +682,7 @@ app.get("/", (req, res) => {
       fiat_chart: "/api/v1/fiats/:symbol/chart?range=1m",
       history: "/api/v1/history/:symbol?range=7d",
       gold: "/api/v1/gold",
+      crypto: "/api/v1/crypto",
       health: "/health",
       openapi: "/openapi.json",
       agent_guide: "/AGENTS.md",
@@ -880,6 +881,25 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
   }
 });
 
+async function getCrypto() {
+ return cached("crypto", async () => {
+  const html=await fetchHtml("https://alanchand.com/crypto-price");
+  const tables=extractTables(cheerio.load(html));
+  const items=[];
+  for(const table of tables)for(const row of table){
+   const name=cleanText(row[0]||"");
+   const symbol=name.match(/([A-Z]{2,12})$/)?.[1];
+   const price=numberFromText(row[1]);
+   if(symbol&&price>0)items.push({symbol,name,price,unit:"toman"});
+  }
+  if(!items.length)throw new Error("Crypto data unavailable");
+  return {items:uniqueBy(items,x=>x.symbol),source:"https://alanchand.com/crypto-price"};
+ });
+}
+app.get("/api/v1/crypto",async(req,res)=>{
+ try{const d=await getCrypto();const data=filterSymbols(d.items,requestedSymbols(req));res.json({ok:true,type:"crypto",count:data.length,source:d.source,data});}
+ catch(err){console.error(err);jsonError(res,502,"UPSTREAM_ERROR","Could not fetch crypto prices");}
+});
 app.get("/api/v1/gold", async (req, res) => {
   try {
     const data = await getGold();
