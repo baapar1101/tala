@@ -209,3 +209,7 @@ For supported crypto symbols (e.g. BTC), if the GitHub snapshot archive lacks ob
 ## TGJU physical gold daily-history fallback
 
 For physical GOLD_18K, EMAMI, BAHAR, HALF_COIN, QUARTER_COIN, GRAM_COIN and MELTED_GOLD, if hourly observations are unavailable, the backend attempts dated daily closing prices from `tgju.org/profile/{profile}/history`, dividing the published rial quotes by ten to return toman. Dates must come from the same row as the closing price, and the response identifies `tgju-daily-history` as provider. This is historical daily closing data, not intraday candles. For cryptocurrencies, the ArzDigital dated table parser must link each quote to the row's Gregorian date.
+
+## Alanchand gold chart source
+
+For physical gold and coins, the backend attempts the original Alanchand chart endpoint after checking its snapshot archive. It requests `/gold-price/{slug}` to acquire a fresh `csrfToken` and `PHPSESSID` cookie, then makes a GET request to `/get-all-data?type=golds&slug={slug}&lang=fa` with `referer`, `x-csrf-token`, and the session cookie. Mapped slugs: MELTED_GOLD=abshodeh, GOLD_18K=18ayar, EMAMI=sekkeh, BAHAR=bahar, HALF_COIN=nim, QUARTER_COIN=rob, GRAM_COIN=sek. The chart response must contain explicit dated price points or it is rejected. The TGJU daily series remains a fallback; the response's `provider` and `source` report the actually selected provider. CSRF and session cookies are never sent to clients or stored in GitHub.
