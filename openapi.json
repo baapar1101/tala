@@ -280,7 +280,7 @@
     "/api/v1/history/{symbol}": {
       "get": {
         "summary": "Historical prices for supported fiat currencies",
-        "description": "Fiat: ArzDigital charts. Gold and coins: existing archive, then Alanchand chart endpoint using a fresh page session and CSRF token, then TGJU daily closing prices. Crypto: archive then ArzDigital historical rows. No synthetic history is generated; response identifies the actual provider.",
+        "description": "Fiat: ArzDigital chart. Crypto: GitHub archive, then ArzDigital chart with verified coin asset ID (BTC=1, USDT=812), then ArzDigital historical table. Gold: archive, Alanchand CSRF chart, TGJU daily history. Provider and actual source are returned; never synthesize missing history.",
         "operationId": "getFiatHistory",
         "parameters": [
           {
