@@ -633,6 +633,7 @@ function apiKeyMiddleware(req, res, next) {
     req.path === "/" ||
     req.path === "/health" ||
     req.path === "/openapi.json" ||
+    req.path === "/AGENTS.md" ||
     req.path.startsWith("/docs")
   ) {
     return next();
@@ -672,7 +673,7 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     name: "Shoogle Price API",
-    version: "1.1.0",
+    version: "1.2.0",
     base_url: PUBLIC_BASE_URL,
     endpoints: {
       prices: "/api/v1/prices",
