@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Shoogle Price API",
-    "version": "1.1.0",
-    "description": "JSON API for currency, gold and coin prices with ArzDigital fiat failover, enrichment, and historical chart endpoints."
+    "version": "1.2.0",
+    "description": "Shoogle JSON API for Iranian fiat currency, cryptocurrency, physical gold and coin spot prices, with source-attributed historical charts, verified fallbacks, and API documentation."
   },
   "servers": [
     {
@@ -280,7 +280,7 @@
     "/api/v1/history/{symbol}": {
       "get": {
         "summary": "Historical prices for supported fiat currencies",
-        "description": "Fiat: ArzDigital chart. Crypto: GitHub archive, ArzDigital asset-ID chart, dated HTML fallback. Gold and coins: GitHub archive, Alanchand CSRF chart, ArzDigital Muninn asset-ID chart (15 verified gold/coin IDs), TGJU daily closing series. ArzDigital USD quote is multiplied by its IRT/USD rate to return toman. Returns provider/source; never invents missing historical data.",
+        "description": "Historical chart with verified observed prices, summary and actual source/provider. Fiat: ArzDigital chart. Crypto: snapshot archive → ArzDigital mapped asset-ID chart → dated ArzDigital table. Gold/coins: snapshot archive → Alanchand CSRF chart → ArzDigital mapped gold/coin chart → TGJU daily series. USD quotes are multiplied by the contemporaneous Toman/USD rate. Missing data is not synthesized.",
         "operationId": "getFiatHistory",
         "parameters": [
           {
@@ -325,7 +325,7 @@
             "description": "Unsupported range"
           },
           "404": {
-            "description": "Historical data unavailable"
+            "description": "Verified history unavailable for the selected asset and period"
           },
           "502": {
             "description": "Upstream error"
@@ -352,6 +352,90 @@
           },
           "502": {
             "description": "Provider unavailable"
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Discover API endpoints and base URL",
+        "operationId": "getApiInfo",
+        "responses": {
+          "200": {
+            "description": "Service metadata and endpoint paths",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Download the OpenAPI 3.1 specification",
+        "operationId": "getOpenApi",
+        "responses": {
+          "200": {
+            "description": "OpenAPI specification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/AGENTS.md": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Read AI agent integration guide",
+        "operationId": "getAgentGuide",
+        "responses": {
+          "200": {
+            "description": "Agent guide in Markdown",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Open interactive Swagger UI",
+        "operationId": "getSwaggerDocs",
+        "responses": {
+          "200": {
+            "description": "Swagger UI documentation page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -924,5 +1008,19 @@
         }
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "System",
+      "description": "Service discovery, health, OpenAPI schema and agent documentation"
+    },
+    {
+      "name": "Prices",
+      "description": "Live market quotes"
+    },
+    {
+      "name": "History",
+      "description": "Source-attributed historical market prices"
+    }
+  ]
 }
