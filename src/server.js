@@ -857,7 +857,7 @@ async function getArzdigitalCryptoHistory(symbol, range) {
   $("tr").each((_,tr)=>{
     const cells=$(tr).find("td").map((_,td)=>cleanText($(td).text())).get();
     const raw=cells.join(" ");
-    const match=raw.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+(\\d{1,2}),?\\s+(20\\d{2})/);
+    const match=raw.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(20\d{2})/);
     if(!match) return;
     const timestamp_ms=Date.UTC(Number(match[3]),EN_MONTHS.indexOf(match[1]),Number(match[2]));
     if(!Number.isFinite(timestamp_ms)) return;
