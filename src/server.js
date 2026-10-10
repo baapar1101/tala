@@ -864,6 +864,38 @@ async function getArzdigitalCoinChart(symbol, range) {
     name:coin.name,kind:"crypto",unit:"toman",asset_id:coin.id};
 }
 
+
+const ARZDIGITAL_GOLD_IDS = Object.freeze({
+  GOLD_18K: {id:27483,name:"طلای ۱۸ عیار"},
+  XAU_OUNCE: {id:27482,name:"انس طلا"},
+  MELTED_GOLD: {id:27484,name:"مثقال طلای آب شده"},
+  GOLD_18K_PREMIUM: {id:27485,name:"حباب طلای ۱۸ عیار"},
+  GOLD_24K: {id:38811,name:"طلای ۲۴ عیار"},
+  BAHAR: {id:27480,name:"سکه تمام بهار آزادی"},
+  HALF_COIN: {id:27479,name:"نیم سکه بهار آزادی"},
+  QUARTER_COIN: {id:27477,name:"ربع سکه بهار آزادی"},
+  EMAMI: {id:27478,name:"سکه امامی"},
+  GRAM_COIN: {id:27481,name:"سکه گرمی"},
+  BAHAR_PREMIUM: {id:27486,name:"حباب سکه بهار آزادی"},
+  GRAM_COIN_PREMIUM: {id:27487,name:"حباب سکه گرمی"},
+  HALF_COIN_PREMIUM: {id:27488,name:"حباب نیم سکه بهار آزادی"},
+  QUARTER_COIN_PREMIUM: {id:27489,name:"حباب ربع سکه بهار آزادی"},
+  EMAMI_PREMIUM: {id:27490,name:"حباب سکه امامی"}
+});
+async function getArzdigitalGoldChart(symbol, range) {
+  const asset=ARZDIGITAL_GOLD_IDS[symbol];
+  if(!asset)return null;
+  const chart=await getArzChartByAssetId(asset.id,range);
+  // Muninn chart rows use [timestamp_ms, USD asset quote, IRT per USD, ...].
+  // Price in toman = USD asset quote * IRT/USD. Never use the FX column alone.
+  const data=chart.data.filter(p=>Number.isFinite(p.timestamp_ms)&&Number.isFinite(p.usd)&&p.usd>0&&Number.isFinite(p.toman)&&p.toman>0)
+    .map(p=>({timestamp_ms:p.timestamp_ms,timestamp:p.timestamp,price:p.usd*p.toman}))
+    .filter(p=>Number.isFinite(p.price)&&p.price>0)
+    .sort((a,b)=>a.timestamp_ms-b.timestamp_ms);
+  if(!data.length)return null;
+  return {data,source:chart.source,provider:"arzdigital-gold-chart",name:asset.name,kind:"gold",unit:"toman",asset_id:asset.id};
+}
+
 const CRYPTO_SLUGS = {BTC:"bitcoin",ETH:"ethereum",USDT:"tether",BNB:"binance-coin",SOL:"solana",XRP:"ripple",ADA:"cardano",DOGE:"dogecoin",TRX:"tron",DOT:"polkadot",LTC:"litecoin",LINK:"chainlink",AVAX:"avalanche",SHIB:"shiba-inu",BCH:"bitcoin-cash",UNI:"uniswap",XLM:"stellar",ATOM:"cosmos",ETC:"ethereum-classic",FIL:"filecoin",APT:"aptos",ARB:"arbitrum",OP:"optimism",SUI:"sui"};
 const EN_MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
 async function getArzdigitalCryptoHistory(symbol, range) {
@@ -1032,12 +1064,16 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
         catch(e){ failures.push("alanchand: "+e.message); }
       }
       if(!origin?.data?.length) {
+        try { origin=await getArzdigitalGoldChart(symbol,range); }
+        catch(e){ failures.push("arzdigital-gold-chart: "+e.message); }
+      }
+      if(!origin?.data?.length) {
         try { origin=await getTgjuGoldHistory(symbol,range); }
         catch(e){ failures.push("tgju: "+e.message); }
       }
       if(!origin?.data?.length) return jsonError(res,404,"HISTORY_UNAVAILABLE",
         "No verified historical observations available from archive or ArzDigital for this asset and range.",
-        {providers_checked:["github-archive","arzdigital-coin-chart","arzdigital-crypto-history","alanchand-gold-chart","tgju-gold-history"],failures});
+        {providers_checked:["github-archive","arzdigital-coin-chart","arzdigital-crypto-history","alanchand-gold-chart","arzdigital-gold-chart","tgju-gold-history"],failures});
       points = origin.data; name = origin.name; unit = origin.unit; kind = origin.kind;
     }
     const first = points[0]?.price ?? null;
