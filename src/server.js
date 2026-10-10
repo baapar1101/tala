@@ -864,7 +864,7 @@ async function getArzdigitalCryptoHistory(symbol, range) {
     if(!Number.isFinite(timestamp_ms))return;
     // The toman quote must appear in this date row, never in a navigation/header row.
     const tomanToken=cells.find(x=>/\d[\d,\.\s]*\s*ت(?:ومان)?(?:\s|$)/.test(normalizeDigits(x)));
-    const quote=tomanToken?.match(/([\d,]+(?:\.\d+)?)\s*ت(?:ومان)?/);
+    const quote=normalizeDigits(tomanToken||"").match(/([\d,]+(?:\.\d+)?)\s*ت(?:ومان)?/);
     const price=quote?Number(quote[1].replace(/,/g,"")):null;
     if(!(price>0))return;
     data.push({timestamp_ms,timestamp:new Date(timestamp_ms).toISOString(),price});
