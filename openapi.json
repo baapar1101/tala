@@ -280,7 +280,7 @@
     "/api/v1/history/{symbol}": {
       "get": {
         "summary": "Historical prices for supported fiat currencies",
-        "description": "Fiat history: ArzDigital chart. Crypto: collected Alanchand snapshots first, fallback to verified ArzDigital historical-data table for mapped coins. Gold/coin: collected Alanchand snapshots; ArzDigital gold-coins page is not assumed to be physical gold historical data. Missing real observations return 404.",
+        "description": "Fiat history: ArzDigital chart. Crypto history: verified Alanchand observations then ArzDigital dated quote rows. Physical gold/coin history: verified observations then TGJU daily closing prices converted from rial to toman. No synthetic points are created. Upstream gaps return HISTORY_UNAVAILABLE.",
         "operationId": "getFiatHistory",
         "parameters": [
           {
