@@ -197,3 +197,7 @@ The JSON response includes `symbol`, `name`, `range`, `unit` (`toman`), `provide
 Error statuses: `400 INVALID_RANGE` for an unsupported range, `404 HISTORY_UNAVAILABLE` for symbols without fiat history (including gold and coins), and `502 UPSTREAM_ERROR` for provider failures. Never invent missing historical prices. The existing `/api/v1/fiats/{symbol}/chart?range=...` endpoint remains available.
 
 Deployment domains are separate: self-hosted `https://price.shoogle.ir` and Vercel `https://mark-price.vercel.app`. Do not attach the self-hosted domain to Vercel.
+
+## Cryptocurrency and gold/coin history
+
+`GET /api/v1/crypto` supplies current cryptocurrency prices from Alanchand. `GET /api/v1/history/{symbol}?range=7d` also supports symbols that have real hourly snapshots in `data/market-history.json`. The GitHub Actions collector `.github/workflows/market-history.yml` fetches current cryptocurrency and gold/coin quotes hourly and commits observations to the archive. Historical observations begin when the workflow first successfully runs; requesting 1 month or 1 year does not imply earlier data exists. A missing series returns 404 HISTORY_UNAVAILABLE. For gold ounce instruments check response `unit`, which can be `usd` instead of `toman`. Preserve original observation timestamps; never synthesize missing candles or backfill from single current quotes.
