@@ -205,3 +205,7 @@ Deployment domains are separate: self-hosted `https://price.shoogle.ir` and Verc
 ## ArzDigital historical fallback
 
 For supported crypto symbols (e.g. BTC), if the GitHub snapshot archive lacks observations, the history endpoint attempts the real historical table at `https://arzdigital.com/coins/{slug}/historical-data/`. Only verified dated prices are returned; provider metadata identifies the fallback. The `arzdigital.com/gold-coins/` category does not establish an equivalent price series for physical Iranian gold, coins, or melted gold. These continue using verified Alanchand archive observations; if missing, return HISTORY_UNAVAILABLE rather than mixing crypto gold tokens with physical-gold prices.
+
+## TGJU physical gold daily-history fallback
+
+For physical GOLD_18K, EMAMI, BAHAR, HALF_COIN, QUARTER_COIN, GRAM_COIN and MELTED_GOLD, if hourly observations are unavailable, the backend attempts dated daily closing prices from `tgju.org/profile/{profile}/history`, dividing the published rial quotes by ten to return toman. Dates must come from the same row as the closing price, and the response identifies `tgju-daily-history` as provider. This is historical daily closing data, not intraday candles. For cryptocurrencies, the ArzDigital dated table parser must link each quote to the row's Gregorian date.
