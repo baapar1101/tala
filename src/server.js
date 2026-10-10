@@ -680,6 +680,7 @@ app.get("/", (req, res) => {
       fiats: "/api/v1/fiats",
       fiat: "/api/v1/fiats/:symbol",
       fiat_chart: "/api/v1/fiats/:symbol/chart?range=1m",
+      history: "/api/v1/history/:symbol?range=7d",
       gold: "/api/v1/gold",
       health: "/health",
       openapi: "/openapi.json",
@@ -819,6 +820,29 @@ app.get("/api/v1/fiats/:symbol/chart", async (req, res) => {
 
 // Historical prices are available from ArzDigital for supported fiat symbols.
 // Do not fabricate gold/coin history: the current gold provider only exposes spot prices.
+
+// Historic snapshots are collected by GitHub Actions from published market quotes.
+// This source contains real observations only; it does not reconstruct prior years.
+async function getArchivedHistory(symbol, range) {
+  const url = "https://raw.githubusercontent.com/baapar1101/tala/main/data/market-history.json";
+  const response = await fetchWithTimeout(url, {headers: {accept:"application/json"}});
+  if (!response.ok) throw new Error("Archive unavailable: HTTP " + response.status);
+  const archive = await response.json();
+  if (!Array.isArray(archive.points)) throw new Error("Archive is malformed");
+  const days = {"1d":1,"7d":7,"1m":30,"3m":90,"6m":180,"1y":365,"all":370}[range];
+  const cutoff = Date.now() - days*86400000;
+  const data = archive.points.flatMap(snapshot => {
+    const timestamp_ms = Date.parse(snapshot.at);
+    if (!Number.isFinite(timestamp_ms) || timestamp_ms < cutoff) return [];
+    const item = snapshot.prices?.find(p=>p.symbol===symbol);
+    if (!item || !Number.isFinite(item.price) || item.price<=0) return [];
+    return [{timestamp_ms,timestamp:snapshot.at,price:item.price}];
+  }).sort((a,b)=>a.timestamp_ms-b.timestamp_ms);
+  const last = archive.points.at(-1)?.prices?.find(p=>p.symbol===symbol);
+  return {data,kind:last?.kind||null,name:last?.name||symbol,unit:last?.unit||"toman",
+    source:url,provider:"alanchand-archived-snapshots"};
+}
+
 app.get("/api/v1/history/:symbol", async (req, res) => {
   const symbol = String(req.params.symbol || "").trim().toUpperCase();
   const range = String(req.query.range || "7d");
@@ -827,17 +851,24 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
   }
   try {
     const fiat = await findArzFiatBySymbol(symbol);
-    if (!fiat) return jsonError(res, 404, "HISTORY_UNAVAILABLE", "Historical data is only available for supported fiat symbols.");
-    const chart = await getArzChartByAssetId(fiat.id, range);
-    const points = chart.data.filter(p => Number.isFinite(p.timestamp_ms) && Number.isFinite(p.toman) && p.toman > 0)
-      .sort((a, b) => a.timestamp_ms - b.timestamp_ms)
-      .map(p => ({ timestamp_ms: p.timestamp_ms, timestamp: p.timestamp, price: p.toman }));
+    let points, origin, name, unit, kind;
+    if (fiat) {
+      const chart = await getArzChartByAssetId(fiat.id, range);
+      points = chart.data.filter(p => Number.isFinite(p.timestamp_ms) && Number.isFinite(p.toman) && p.toman > 0)
+        .sort((a,b)=>a.timestamp_ms-b.timestamp_ms)
+        .map(p=>({timestamp_ms:p.timestamp_ms,timestamp:p.timestamp,price:p.toman}));
+      origin = chart; name = fiat.fa_name || fiat.name || symbol; unit = "toman"; kind = "currency";
+    } else {
+      origin = await getArchivedHistory(symbol, range);
+      points = origin.data; name = origin.name; unit = origin.unit; kind = origin.kind;
+      if (!points.length) return jsonError(res,404,"HISTORY_UNAVAILABLE","No collected historical observations for this asset and range yet.");
+    }
     const first = points[0]?.price ?? null;
     const last = points[points.length - 1]?.price ?? null;
     const change = first && last ? ((last - first) / first) * 100 : null;
     res.json({
-      ok: true, symbol, name: fiat.fa_name || fiat.name || symbol, range, unit: "toman",
-      source: chart.source, provider: chart.provider, fetched_at: chart.fetched_at,
+      ok: true, symbol, name, range, unit, kind,
+      source: origin.source, provider: origin.provider, fetched_at: new Date().toISOString(),
       count: points.length,
       summary: { first, last, min: points.length ? Math.min(...points.map(p => p.price)) : null,
         max: points.length ? Math.max(...points.map(p => p.price)) : null, change_percent: change },
