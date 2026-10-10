@@ -845,6 +845,25 @@ async function getArchivedHistory(symbol, range) {
 }
 
 
+
+const ARZDIGITAL_COIN_IDS = Object.freeze({
+  BTC: { id: 1, name: "Bitcoin" },
+  USDT: { id: 812, name: "Tether USDt" }
+});
+
+async function getArzdigitalCoinChart(symbol, range) {
+  const coin=ARZDIGITAL_COIN_IDS[symbol];
+  if(!coin)return null;
+  const chart=await getArzChartByAssetId(coin.id,range);
+  const data=chart.data
+    .filter(p=>Number.isFinite(p.timestamp_ms)&&Number.isFinite(p.toman)&&p.toman>0)
+    .map(p=>({timestamp_ms:p.timestamp_ms,timestamp:p.timestamp,price:p.toman}))
+    .sort((a,b)=>a.timestamp_ms-b.timestamp_ms);
+  if(!data.length)return null;
+  return {data,source:chart.source,provider:"arzdigital-coin-chart",
+    name:coin.name,kind:"crypto",unit:"toman",asset_id:coin.id};
+}
+
 const CRYPTO_SLUGS = {BTC:"bitcoin",ETH:"ethereum",USDT:"tether",BNB:"binance-coin",SOL:"solana",XRP:"ripple",ADA:"cardano",DOGE:"dogecoin",TRX:"tron",DOT:"polkadot",LTC:"litecoin",LINK:"chainlink",AVAX:"avalanche",SHIB:"shiba-inu",BCH:"bitcoin-cash",UNI:"uniswap",XLM:"stellar",ATOM:"cosmos",ETC:"ethereum-classic",FIL:"filecoin",APT:"aptos",ARB:"arbitrum",OP:"optimism",SUI:"sui"};
 const EN_MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
 async function getArzdigitalCryptoHistory(symbol, range) {
@@ -1001,6 +1020,10 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
       const failures=[];
       try { origin=await getArchivedHistory(symbol,range); } catch(e){ failures.push("archive: "+e.message); }
       if(!origin?.data?.length) {
+        try { origin=await getArzdigitalCoinChart(symbol,range); }
+        catch(e){ failures.push("arzdigital-chart: "+e.message); }
+      }
+      if(!origin?.data?.length) {
         try { origin=await getArzdigitalCryptoHistory(symbol,range); }
         catch(e){ failures.push("arzdigital: "+e.message); }
       }
@@ -1014,7 +1037,7 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
       }
       if(!origin?.data?.length) return jsonError(res,404,"HISTORY_UNAVAILABLE",
         "No verified historical observations available from archive or ArzDigital for this asset and range.",
-        {providers_checked:["github-archive","arzdigital-crypto-history","alanchand-gold-chart","tgju-gold-history"],failures});
+        {providers_checked:["github-archive","arzdigital-coin-chart","arzdigital-crypto-history","alanchand-gold-chart","tgju-gold-history"],failures});
       points = origin.data; name = origin.name; unit = origin.unit; kind = origin.kind;
     }
     const first = points[0]?.price ?? null;
