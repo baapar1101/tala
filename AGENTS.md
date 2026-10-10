@@ -213,3 +213,7 @@ For physical GOLD_18K, EMAMI, BAHAR, HALF_COIN, QUARTER_COIN, GRAM_COIN and MELT
 ## Alanchand gold chart source
 
 For physical gold and coins, the backend attempts the original Alanchand chart endpoint after checking its snapshot archive. It requests `/gold-price/{slug}` to acquire a fresh `csrfToken` and `PHPSESSID` cookie, then makes a GET request to `/get-all-data?type=golds&slug={slug}&lang=fa` with `referer`, `x-csrf-token`, and the session cookie. Mapped slugs: MELTED_GOLD=abshodeh, GOLD_18K=18ayar, EMAMI=sekkeh, BAHAR=bahar, HALF_COIN=nim, QUARTER_COIN=rob, GRAM_COIN=sek. The chart response must contain explicit dated price points or it is rejected. The TGJU daily series remains a fallback; the response's `provider` and `source` report the actually selected provider. CSRF and session cookies are never sent to clients or stored in GitHub.
+
+## ArzDigital chart IDs for cryptocurrencies
+
+On a missing local archive series, crypto history tries the `https://gw.arzdigital.com/muninn/v1/chart?id={id}&range={range}` JSON chart before HTML table fallback. The supplied coin asset mappings are BTC=1 and USDT=812. These are top-level coin IDs, not `networks[].id` or `native_asset_id`. The source returns row arrays with Unix milliseconds and a Toman price in index 2; only valid points are accepted. Keep provider attribution as `arzdigital-coin-chart`. Other coins require their verified top-level coin asset ID before adding a mapping.
