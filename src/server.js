@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import swaggerUi from "swagger-ui-express";
 import { rateLimit } from "express-rate-limit";
 import * as cheerio from "cheerio";
 import fs from "node:fs";
@@ -710,10 +709,21 @@ app.get("/AGENTS.md", (req, res) => {
   res.type("text/markdown; charset=utf-8").send(fs.readFileSync(agentsPath, "utf8"));
 });
 
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapi, {
-  explorer: true,
-  customSiteTitle: "Shoogle Price API Docs"
-}));
+// Render Swagger UI as a standalone document. Vercel's catch-all rewrite
+// can serve /docs HTML for swagger-ui.css, causing a blank page.
+app.get(["/docs", "/docs/"], (req, res) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shoogle Price API Docs</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.31.2/swagger-ui.css">
+<style>body{margin:0;background:#f8fafc}#swagger-ui{min-height:100vh}</style>
+</head><body><div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.31.2/swagger-ui-bundle.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.31.2/swagger-ui-standalone-preset.js"><\/script>
+<script>window.addEventListener("load",function(){window.ui=SwaggerUIBundle({url:"/openapi.json",dom_id:"#swagger-ui",deepLinking:true,presets:[SwaggerUIBundle.presets.apis,SwaggerUIStandalonePreset],layout:"StandaloneLayout",displayRequestDuration:true});});<\/script>
+</body></html>`);
+});
 
 app.get("/api/v1/currencies", async (req, res) => {
   try {
