@@ -276,6 +276,62 @@
           }
         }
       }
+    },
+    "/api/v1/history/{symbol}": {
+      "get": {
+        "summary": "Historical prices for supported fiat currencies",
+        "description": "Historical gold and coin prices are not available from the configured provider. Returns 404 HISTORY_UNAVAILABLE for unsupported symbols.",
+        "operationId": "getFiatHistory",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "USD"
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1d",
+                "7d",
+                "1m",
+                "3m",
+                "6m",
+                "1y",
+                "all"
+              ],
+              "default": "7d"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Time series in toman and summary statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported range"
+          },
+          "404": {
+            "description": "Historical data unavailable"
+          },
+          "502": {
+            "description": "Upstream error"
+          }
+        }
+      }
     }
   },
   "components": {
