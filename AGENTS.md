@@ -176,3 +176,24 @@ Typical fallback item:
 For the longest available range:
 
 `GET https://price.shoogle.ir/api/v1/fiats/USD/chart?range=all`
+
+
+## Historical price API
+
+For supported fiat currencies use `GET /api/v1/history/{symbol}?range={range}`.
+
+Supported ranges: `1d`, `7d` (week, default), `1m` (month), `3m`, `6m`, `1y` (year), `all`.
+
+Examples:
+
+```bash
+curl "https://mark-price.vercel.app/api/v1/history/USD?range=7d"
+curl "https://mark-price.vercel.app/api/v1/history/EUR?range=1m"
+curl "https://mark-price.vercel.app/api/v1/history/USD?range=1y"
+```
+
+The JSON response includes `symbol`, `name`, `range`, `unit` (`toman`), `provider`, `source`, `fetched_at`, `count`, `summary`, and `data`. Data points have `timestamp_ms`, ISO `timestamp`, and numeric `price`. Summary fields are `first`, `last`, `min`, `max`, and `change_percent`.
+
+Error statuses: `400 INVALID_RANGE` for an unsupported range, `404 HISTORY_UNAVAILABLE` for symbols without fiat history (including gold and coins), and `502 UPSTREAM_ERROR` for provider failures. Never invent missing historical prices. The existing `/api/v1/fiats/{symbol}/chart?range=...` endpoint remains available.
+
+Deployment domains are separate: self-hosted `https://price.shoogle.ir` and Vercel `https://mark-price.vercel.app`. Do not attach the self-hosted domain to Vercel.
