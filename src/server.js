@@ -912,6 +912,76 @@ async function getTgjuGoldHistory(symbol,range){
  return {data,source,provider:"tgju-daily-history",name:symbol,kind:"gold",unit:"toman"};
 }
 
+
+const ALANCHAND_GOLD_SLUGS = {
+  MELTED_GOLD: "abshodeh", GOLD_18K: "18ayar", EMAMI: "sekkeh",
+  BAHAR: "bahar", HALF_COIN: "nim", QUARTER_COIN: "rob", GRAM_COIN: "sek"
+};
+function parseAlanHistory(payload, range) {
+  const candidates = [payload, payload?.data, payload?.result, payload?.chart, payload?.history, payload?.prices, payload?.series, payload?.data?.data, payload?.data?.chart];
+  const arrays = candidates.filter(Array.isArray);
+  for (const item of candidates) {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      for (const key of ["data","points","series","history","prices","chart","values"]) {
+        if (Array.isArray(item[key])) arrays.push(item[key]);
+      }
+    }
+  }
+  const toTime = value => {
+    if (typeof value === "number" || /^\d{10,13}$/.test(String(value||""))) {
+      const n=Number(value);
+      if(n>1e12)return n;
+      if(n>1e9)return n*1000;
+    }
+    const t=Date.parse(String(value||""));
+    return Number.isFinite(t)?t:NaN;
+  };
+  const toPrice = value => {
+    if (typeof value === "number") return value;
+    if (typeof value !== "string") return NaN;
+    const cleaned=normalizeDigits(value).replace(/,/g,"").replace(/[^0-9.\-]/g,"");
+    return cleaned && Number.isFinite(Number(cleaned)) ? Number(cleaned) : NaN;
+  };
+  const now=Date.now(), days={"1d":1,"7d":7,"1m":30,"3m":90,"6m":180,"1y":365,"all":36500}[range];
+  for (const array of arrays) {
+    const points=[];
+    for (const row of array) {
+      const at=Array.isArray(row)?row[0]:row?.timestamp_ms??row?.timestamp??row?.time??row?.date??row?.x;
+      const val=Array.isArray(row)?row[1]:row?.price??row?.value??row?.close??row?.y;
+      const timestamp_ms=toTime(at),price=toPrice(val);
+      if(!Number.isFinite(timestamp_ms)||timestamp_ms>now+86400000||timestamp_ms<946684800000||timestamp_ms<now-days*86400000||!(price>0))continue;
+      points.push({timestamp_ms,timestamp:new Date(timestamp_ms).toISOString(),price});
+    }
+    if(points.length) return [...new Map(points.map(p=>[p.timestamp_ms,p])).values()].sort((a,b)=>a.timestamp_ms-b.timestamp_ms);
+  }
+  return [];
+}
+async function getAlanGoldHistory(symbol,range) {
+  const slug=ALANCHAND_GOLD_SLUGS[symbol];
+  if(!slug)return null;
+  const referer="https://alanchand.com/gold-price/"+slug;
+  const page=await fetchWithTimeout(referer,{headers:{accept:"text/html"}});
+  if(!page.ok)throw new Error("Alanchand page HTTP "+page.status);
+  const html=await page.text();
+  const csrf=html.match(/(?:const|let|var)\s+csrfToken\s*=\s*["']([^"']+)["']/)?.[1];
+  const cookies=page.headers.get("set-cookie")||"";
+  const session=cookies.match(/PHPSESSID=[^;\s,]+/)?.[0];
+  if(!csrf||!session)throw new Error("Alanchand session or CSRF token unavailable");
+  const url=new URL("https://alanchand.com/get-all-data");
+  url.searchParams.set("type","golds");
+  url.searchParams.set("slug",slug);
+  url.searchParams.set("lang","fa");
+  const response=await fetchWithTimeout(url.toString(),{headers:{
+    accept:"application/json, text/plain, */*",referer,
+    "x-csrf-token":csrf,cookie:session,"x-requested-with":"XMLHttpRequest"
+  }});
+  if(!response.ok)throw new Error("Alanchand data HTTP "+response.status);
+  const payload=await response.json();
+  const data=parseAlanHistory(payload,range);
+  if(!data.length)return null;
+  return {data,source:url.toString(),provider:"alanchand-chart",name:symbol,kind:"gold",unit:"toman"};
+}
+
 app.get("/api/v1/history/:symbol", async (req, res) => {
   const symbol = String(req.params.symbol || "").trim().toUpperCase();
   const range = String(req.query.range || "7d");
@@ -935,12 +1005,16 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
         catch(e){ failures.push("arzdigital: "+e.message); }
       }
       if(!origin?.data?.length) {
+        try { origin=await getAlanGoldHistory(symbol,range); }
+        catch(e){ failures.push("alanchand: "+e.message); }
+      }
+      if(!origin?.data?.length) {
         try { origin=await getTgjuGoldHistory(symbol,range); }
         catch(e){ failures.push("tgju: "+e.message); }
       }
       if(!origin?.data?.length) return jsonError(res,404,"HISTORY_UNAVAILABLE",
         "No verified historical observations available from archive or ArzDigital for this asset and range.",
-        {providers_checked:["github-archive","arzdigital-crypto-history","tgju-gold-history"],failures});
+        {providers_checked:["github-archive","arzdigital-crypto-history","alanchand-gold-chart","tgju-gold-history"],failures});
       points = origin.data; name = origin.name; unit = origin.unit; kind = origin.kind;
     }
     const first = points[0]?.price ?? null;
