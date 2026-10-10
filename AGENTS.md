@@ -201,3 +201,7 @@ Deployment domains are separate: self-hosted `https://price.shoogle.ir` and Verc
 ## Cryptocurrency and gold/coin history
 
 `GET /api/v1/crypto` supplies current cryptocurrency prices from Alanchand. `GET /api/v1/history/{symbol}?range=7d` also supports symbols that have real hourly snapshots in `data/market-history.json`. The GitHub Actions collector `.github/workflows/market-history.yml` fetches current cryptocurrency and gold/coin quotes hourly and commits observations to the archive. Historical observations begin when the workflow first successfully runs; requesting 1 month or 1 year does not imply earlier data exists. A missing series returns 404 HISTORY_UNAVAILABLE. For gold ounce instruments check response `unit`, which can be `usd` instead of `toman`. Preserve original observation timestamps; never synthesize missing candles or backfill from single current quotes.
+
+## ArzDigital historical fallback
+
+For supported crypto symbols (e.g. BTC), if the GitHub snapshot archive lacks observations, the history endpoint attempts the real historical table at `https://arzdigital.com/coins/{slug}/historical-data/`. Only verified dated prices are returned; provider metadata identifies the fallback. The `arzdigital.com/gold-coins/` category does not establish an equivalent price series for physical Iranian gold, coins, or melted gold. These continue using verified Alanchand archive observations; if missing, return HISTORY_UNAVAILABLE rather than mixing crypto gold tokens with physical-gold prices.
