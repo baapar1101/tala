@@ -856,8 +856,8 @@ async function getArzdigitalCoinChart(symbol, range) {
   if(!coin)return null;
   const chart=await getArzChartByAssetId(coin.id,range);
   const data=chart.data
-    .filter(p=>Number.isFinite(p.timestamp_ms)&&Number.isFinite(p.toman)&&p.toman>0)
-    .map(p=>({timestamp_ms:p.timestamp_ms,timestamp:p.timestamp,price:p.toman}))
+    .filter(p=>Number.isFinite(p.timestamp_ms)&&Number.isFinite(p.toman)&&p.toman>0&&Number.isFinite(p.usd)&&p.usd>0)
+    .map(p=>({timestamp_ms:p.timestamp_ms,timestamp:p.timestamp,price:p.usd*p.toman}))
     .sort((a,b)=>a.timestamp_ms-b.timestamp_ms);
   if(!data.length)return null;
   return {data,source:chart.source,provider:"arzdigital-coin-chart",
