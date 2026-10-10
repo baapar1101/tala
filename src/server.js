@@ -844,6 +844,35 @@ async function getArchivedHistory(symbol, range) {
     source:url,provider:"alanchand-archived-snapshots"};
 }
 
+
+const CRYPTO_SLUGS = {BTC:"bitcoin",ETH:"ethereum",USDT:"tether",BNB:"binance-coin",SOL:"solana",XRP:"ripple",ADA:"cardano",DOGE:"dogecoin",TRX:"tron",DOT:"polkadot",LTC:"litecoin",LINK:"chainlink",AVAX:"avalanche",SHIB:"shiba-inu",BCH:"bitcoin-cash",UNI:"uniswap",XLM:"stellar",ATOM:"cosmos",ETC:"ethereum-classic",FIL:"filecoin",APT:"aptos",ARB:"arbitrum",OP:"optimism",SUI:"sui"};
+const EN_MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+async function getArzdigitalCryptoHistory(symbol, range) {
+  const slug=CRYPTO_SLUGS[symbol];
+  if (!slug) return null;
+  const source="https://arzdigital.com/coins/"+slug+"/historical-data/";
+  const html=await fetchHtml(source);
+  const $=cheerio.load(html);
+  const data=[];
+  $("tr").each((_,tr)=>{
+    const cells=$(tr).find("td").map((_,td)=>cleanText($(td).text())).get();
+    const raw=cells.join(" ");
+    const match=raw.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+(\\d{1,2}),?\\s+(20\\d{2})/);
+    if(!match) return;
+    const timestamp_ms=Date.UTC(Number(match[3]),EN_MONTHS.indexOf(match[1]),Number(match[2]));
+    if(!Number.isFinite(timestamp_ms)) return;
+    const tokens=cells.filter(x=>/ت|تومان/.test(x));
+    const price=numberFromText(tokens[0] || "");
+    if(!Number.isFinite(price)||price<=0)return;
+    data.push({timestamp_ms,timestamp:new Date(timestamp_ms).toISOString(),price});
+  });
+  const days={"1d":1,"7d":7,"1m":30,"3m":90,"6m":180,"1y":365,"all":36500}[range];
+  const cutoff=Date.now()-days*86400000;
+  const dedup=[...new Map(data.filter(p=>p.timestamp_ms>=cutoff).map(p=>[p.timestamp_ms,p])).values()].sort((a,b)=>a.timestamp_ms-b.timestamp_ms);
+  if(!dedup.length)return null;
+  return {data:dedup,source,provider:"arzdigital-historical-table",kind:"crypto",unit:"toman",name:symbol};
+}
+
 app.get("/api/v1/history/:symbol", async (req, res) => {
   const symbol = String(req.params.symbol || "").trim().toUpperCase();
   const range = String(req.query.range || "7d");
@@ -860,9 +889,16 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
         .map(p=>({timestamp_ms:p.timestamp_ms,timestamp:p.timestamp,price:p.toman}));
       origin = chart; name = fiat.fa_name || fiat.name || symbol; unit = "toman"; kind = "currency";
     } else {
-      origin = await getArchivedHistory(symbol, range);
+      const failures=[];
+      try { origin=await getArchivedHistory(symbol,range); } catch(e){ failures.push("archive: "+e.message); }
+      if(!origin?.data?.length) {
+        try { origin=await getArzdigitalCryptoHistory(symbol,range); }
+        catch(e){ failures.push("arzdigital: "+e.message); }
+      }
+      if(!origin?.data?.length) return jsonError(res,404,"HISTORY_UNAVAILABLE",
+        "No verified historical observations available from archive or ArzDigital for this asset and range.",
+        {providers_checked:["github-archive","arzdigital-crypto-history"],failures});
       points = origin.data; name = origin.name; unit = origin.unit; kind = origin.kind;
-      if (!points.length) return jsonError(res,404,"HISTORY_UNAVAILABLE","No collected historical observations for this asset and range yet.");
     }
     const first = points[0]?.price ?? null;
     const last = points[points.length - 1]?.price ?? null;
