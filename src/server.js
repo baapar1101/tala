@@ -865,7 +865,14 @@ async function getArzdigitalCryptoHistory(symbol, range) {
     // The toman quote must appear in this date row, never in a navigation/header row.
     const tomanToken=cells.find(x=>/\d[\d,\.\s]*\s*ت(?:ومان)?(?:\s|$)/.test(normalizeDigits(x)));
     const quote=normalizeDigits(tomanToken||"").match(/([\d,]+(?:\.\d+)?)\s*ت(?:ومان)?/);
-    const price=quote?Number(quote[1].replace(/,/g,"")):null;
+    let price=quote?Number(quote[1].replace(/,/g,"")):null;
+    // Some historical rows concatenate the Jalali year (14xx) with the Toman quote.
+    // When present, strip the year prefix from the same captured number.
+    if(quote && /^14[0-9]{2}[0-9]{1,3},/.test(quote[1])){
+      const withoutYear=quote[1].slice(4);
+      const n=Number(withoutYear.replace(/,/g,""));
+      if(n>0)price=n;
+    }
     if(!(price>0))return;
     data.push({timestamp_ms,timestamp:new Date(timestamp_ms).toISOString(),price});
   });
