@@ -856,14 +856,17 @@ async function getArzdigitalCryptoHistory(symbol, range) {
   const data=[];
   $("tr").each((_,tr)=>{
     const cells=$(tr).find("td").map((_,td)=>cleanText($(td).text())).get();
+    if(cells.length<2)return;
     const raw=cells.join(" ");
     const match=raw.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),?\s+(20\d{2})/);
-    if(!match) return;
+    if(!match)return;
     const timestamp_ms=Date.UTC(Number(match[3]),EN_MONTHS.indexOf(match[1]),Number(match[2]));
-    if(!Number.isFinite(timestamp_ms)) return;
-    const tokens=cells.filter(x=>/ت|تومان/.test(x));
-    const price=numberFromText(tokens[0] || "");
-    if(!Number.isFinite(price)||price<=0)return;
+    if(!Number.isFinite(timestamp_ms))return;
+    // The toman quote must appear in this date row, never in a navigation/header row.
+    const tomanToken=cells.find(x=>/\d[\d,\.\s]*\s*ت(?:ومان)?(?:\s|$)/.test(normalizeDigits(x)));
+    const quote=tomanToken?.match(/([\d,]+(?:\.\d+)?)\s*ت(?:ومان)?/);
+    const price=quote?Number(quote[1].replace(/,/g,"")):null;
+    if(!(price>0))return;
     data.push({timestamp_ms,timestamp:new Date(timestamp_ms).toISOString(),price});
   });
   const days={"1d":1,"7d":7,"1m":30,"3m":90,"6m":180,"1y":365,"all":36500}[range];
@@ -871,6 +874,35 @@ async function getArzdigitalCryptoHistory(symbol, range) {
   const dedup=[...new Map(data.filter(p=>p.timestamp_ms>=cutoff).map(p=>[p.timestamp_ms,p])).values()].sort((a,b)=>a.timestamp_ms-b.timestamp_ms);
   if(!dedup.length)return null;
   return {data:dedup,source,provider:"arzdigital-historical-table",kind:"crypto",unit:"toman",name:symbol};
+}
+
+const GOLD_HISTORY_PROFILES = {
+ GOLD_18K:"geram18", EMAMI:"sekee", BAHAR:"sekeb", HALF_COIN:"nim",
+ QUARTER_COIN:"rob", GRAM_COIN:"gerami", MELTED_GOLD:"abshodeh"
+};
+async function getTgjuGoldHistory(symbol,range){
+ const profile=GOLD_HISTORY_PROFILES[symbol];
+ if(!profile)return null;
+ const source="https://www.tgju.org/profile/"+profile+"/history";
+ const html=await fetchHtml(source);
+ const $=cheerio.load(html);const entries=[];
+ $("tr").each((_,tr)=>{
+  const cells=$(tr).find("td").map((_,td)=>cleanText($(td).text())).get();
+  if(cells.length<8)return;
+  const day=cells.find(v=>/^20\d{2}\/\d{2}\/\d{2}$/.test(normalizeDigits(v)));
+  if(!day)return;
+  const timestamp_ms=Date.parse(day.replaceAll("/","-")+"T00:00:00Z");
+  // TGJU table: opening, low, high, closing (RIAL), change, percent, Gregorian, Jalali.
+  const rial=numberFromText(cells[3]);
+  if(!Number.isFinite(timestamp_ms)||!(rial>0))return;
+  const price=rial/10;
+  entries.push({timestamp_ms,timestamp:new Date(timestamp_ms).toISOString(),price});
+ });
+ const days={"1d":1,"7d":7,"1m":30,"3m":90,"6m":180,"1y":365,"all":36500}[range];
+ const cutoff=Date.now()-days*86400000;
+ const data=[...new Map(entries.filter(p=>p.timestamp_ms>=cutoff).map(p=>[p.timestamp_ms,p])).values()].sort((a,b)=>a.timestamp_ms-b.timestamp_ms);
+ if(!data.length)return null;
+ return {data,source,provider:"tgju-daily-history",name:symbol,kind:"gold",unit:"toman"};
 }
 
 app.get("/api/v1/history/:symbol", async (req, res) => {
@@ -895,9 +927,13 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
         try { origin=await getArzdigitalCryptoHistory(symbol,range); }
         catch(e){ failures.push("arzdigital: "+e.message); }
       }
+      if(!origin?.data?.length) {
+        try { origin=await getTgjuGoldHistory(symbol,range); }
+        catch(e){ failures.push("tgju: "+e.message); }
+      }
       if(!origin?.data?.length) return jsonError(res,404,"HISTORY_UNAVAILABLE",
         "No verified historical observations available from archive or ArzDigital for this asset and range.",
-        {providers_checked:["github-archive","arzdigital-crypto-history"],failures});
+        {providers_checked:["github-archive","arzdigital-crypto-history","tgju-gold-history"],failures});
       points = origin.data; name = origin.name; unit = origin.unit; kind = origin.kind;
     }
     const first = points[0]?.price ?? null;
