@@ -1061,30 +1061,36 @@ app.get("/api/v1/history/:symbol", async (req, res) => {
       origin = chart; name = fiat.fa_name || fiat.name || symbol; unit = "toman"; kind = "currency";
     } else {
       const failures=[];
-      try { origin=await getArchivedHistory(symbol,range); } catch(e){ failures.push("archive: "+e.message); }
-      if(!origin?.data?.length) {
-        try { origin=await getArzdigitalCoinChart(symbol,range); }
-        catch(e){ failures.push("arzdigital-chart: "+e.message); }
-      }
-      if(!origin?.data?.length) {
-        try { origin=await getArzdigitalCryptoHistory(symbol,range); }
-        catch(e){ failures.push("arzdigital: "+e.message); }
-      }
-      if(!origin?.data?.length) {
-        try { origin=await getAlanGoldHistory(symbol,range); }
-        catch(e){ failures.push("alanchand: "+e.message); }
-      }
-      if(!origin?.data?.length) {
-        try { origin=await getArzdigitalGoldChart(symbol,range); }
-        catch(e){ failures.push("arzdigital-gold-chart: "+e.message); }
-      }
-      if(!origin?.data?.length) {
-        try { origin=await getTgjuGoldHistory(symbol,range); }
-        catch(e){ failures.push("tgju: "+e.message); }
+      const isGold = Boolean(ARZDIGITAL_GOLD_IDS[symbol] || ALANCHAND_GOLD_SLUGS[symbol]);
+      if(isGold) {
+        // Prefer the provider's full period history; short-lived hourly archives
+        // must not obscure historical data already available upstream.
+        for(const [label,fetcher] of [
+          ["alanchand",getAlanGoldHistory],
+          ["arzdigital-gold-chart",getArzdigitalGoldChart],
+          ["tgju",getTgjuGoldHistory],
+          ["archive",getArchivedHistory]
+        ]) {
+          try {
+            const candidate=await fetcher(symbol,range);
+            if(candidate?.data?.length) {origin=candidate;break;}
+          } catch(e) {failures.push(label+": "+e.message);}
+        }
+      } else {
+        for(const [label,fetcher] of [
+          ["arzdigital-coin-chart",getArzdigitalCoinChart],
+          ["arzdigital-crypto-history",getArzdigitalCryptoHistory],
+          ["archive",getArchivedHistory]
+        ]) {
+          try {
+            const candidate=await fetcher(symbol,range);
+            if(candidate?.data?.length) {origin=candidate;break;}
+          } catch(e) {failures.push(label+": "+e.message);}
+        }
       }
       if(!origin?.data?.length) return jsonError(res,404,"HISTORY_UNAVAILABLE",
-        "No verified historical observations available from archive or ArzDigital for this asset and range.",
-        {providers_checked:["github-archive","arzdigital-coin-chart","arzdigital-crypto-history","alanchand-gold-chart","arzdigital-gold-chart","tgju-gold-history"],failures});
+        "No verified historical observations available for this asset and range.",
+        {failures});
       points = origin.data; name = origin.name; unit = origin.unit; kind = origin.kind;
     }
     const first = points[0]?.price ?? null;
