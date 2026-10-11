@@ -37,7 +37,7 @@ Supported historical ranges: `1d`, `7d`, `1m`, `3m`, `6m`, `1y`, `all`. The hist
 
 - **Fiat currencies:** ArzDigital fiat metadata plus Muninn chart for the verified fiat asset ID.
 - **Cryptocurrencies:** GitHub `market-history` archive → ArzDigital Muninn chart with verified coin asset ID → historical dated HTML table. Currently verified coin IDs: BTC=1 and USDT=812. Historical Muninn coin price in Toman is row[1] (asset's USD price) × row[2] (Toman per USD), not row[2] alone. Never use `networks[].id` as the coin's ID.
-- **Physical gold and Iranian coins:** GitHub `market-history` archive → Alanchand gold chart → ArzDigital Muninn chart for verified gold/coin ID → TGJU daily closing prices. Do not mistake digital gold tokens for physical gold or coin quotes.
+- **Physical gold and Iranian coins:** Alanchand gold chart → ArzDigital Muninn chart for verified gold/coin ID → TGJU daily closing prices → GitHub `market-history` archive. Do not mistake digital gold tokens for physical gold or coin quotes.
 
 ### Alanchand gold charts
 
