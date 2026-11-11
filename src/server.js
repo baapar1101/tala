@@ -592,20 +592,96 @@ async function findArzFiatBySymbol(symbol) {
   }) || null;
 }
 
+const GOLD_SPOT_FALLBACK_SYMBOLS = [
+  "GOLD_18K", "GOLD_24K", "MELTED_GOLD", "XAU_OUNCE",
+  "EMAMI", "BAHAR", "HALF_COIN", "QUARTER_COIN", "GRAM_COIN"
+];
+const GOLD_QUOTE_MAX_AGE_MS = 72 * 60 * 60 * 1000;
+
+function observedGoldItem(symbol, observation, provider, source) {
+  if (!observation || !Number.isFinite(observation.price) || observation.price <= 0 ||
+      !Number.isFinite(observation.timestamp_ms)) return null;
+  const age = Date.now() - observation.timestamp_ms;
+  if (age < -300000 || age > GOLD_QUOTE_MAX_AGE_MS) return null;
+  return {
+    symbol,
+    name: ARZDIGITAL_GOLD_IDS[symbol]?.name || symbol,
+    price: observation.price,
+    change_percent: null,
+    real_price: null,
+    bubble_amount: null,
+    bubble_percent: null,
+    unit: "toman",
+    source_provider: provider,
+    source,
+    last_updated_at: new Date(observation.timestamp_ms).toISOString(),
+    price_mode: "last_observed",
+    chart_available: true
+  };
+}
+
 async function getGold() {
   return cached("gold", async () => {
-    const html = await fetchHtml(SOURCE.gold);
-    const parsed = parseGold(html);
-
-    if (!parsed.items.length) {
-      throw new Error("Gold table was not found or could not be parsed.");
+    let primaryError;
+    try {
+      const html = await fetchHtml(SOURCE.gold);
+      const parsed = parseGold(html);
+      if (!parsed.items.length) throw new Error("Gold table was not found or could not be parsed.");
+      return {
+        provider: "alanchand", failover_used: false, coverage_partial: false,
+        source: SOURCE.gold, sources: [{provider:"alanchand",url:SOURCE.gold}],
+        source_updated_at: parsed.source_updated_at,
+        fetched_at: new Date().toISOString(),
+        items: parsed.items.map(item=>({...item,source_provider:"alanchand"}))
+      };
+    } catch (error) {
+      primaryError = error;
+      console.warn("Alanchand spot gold unavailable; using verified observations:", error.message);
     }
-
+    // Physical gold asset IDs; normalized quote = asset USD price * toman per USD.
+    const goldQuotes = await Promise.allSettled(GOLD_SPOT_FALLBACK_SYMBOLS.map(async symbol => {
+      for (const range of ["1d", "7d"]) {
+        try {
+          const chart = await getArzdigitalGoldChart(symbol, range);
+          const item = observedGoldItem(symbol, chart?.data?.at(-1), "arzdigital", chart?.source);
+          if (item) return item;
+        } catch (error) {
+          console.warn("ArzDigital gold chart unavailable", symbol, range, error.message);
+        }
+      }
+      return null;
+    }));
+    const found = new Map();
+    for (const result of goldQuotes) {
+      if (result.status === "fulfilled" && result.value) found.set(result.value.symbol, result.value);
+    }
+    // Last-resort TGJU dated daily close; never synthesize a live quote.
+    const tgjuSymbols = GOLD_SPOT_FALLBACK_SYMBOLS.filter(symbol =>
+      !found.has(symbol) && Boolean(GOLD_HISTORY_PROFILES[symbol]));
+    if (tgjuSymbols.length) {
+      const tgjuQuotes = await Promise.allSettled(tgjuSymbols.map(async symbol => {
+        const history = await getTgjuGoldHistory(symbol, "7d");
+        return observedGoldItem(symbol, history?.data?.at(-1), "tgju", history?.source);
+      }));
+      for (const result of tgjuQuotes) {
+        if (result.status === "fulfilled" && result.value) found.set(result.value.symbol, result.value);
+      }
+    }
+    const items = GOLD_SPOT_FALLBACK_SYMBOLS.map(symbol => found.get(symbol)).filter(Boolean);
+    if (!items.length) {
+      throw new Error("All gold spot providers failed; Alanchand: " + primaryError.message +
+        "; ArzDigital and TGJU: no recent verified observations.");
+    }
+    const providers = [...new Set(items.map(item => item.source_provider))];
     return {
-      source: SOURCE.gold,
-      source_updated_at: parsed.source_updated_at,
+      provider: providers.join("+"), failover_used: true,
+      coverage_partial: items.length < GOLD_SPOT_FALLBACK_SYMBOLS.length,
+      primary_error: primaryError.message,
+      source: items[0].source,
+      sources: items.map(item => ({symbol:item.symbol,provider:item.source_provider,url:item.source})),
+      source_updated_at: items.map(item => item.last_updated_at).sort().at(-1),
       fetched_at: new Date().toISOString(),
-      items: parsed.items
+      items
     };
   });
 }
@@ -672,7 +748,7 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     name: "Shoogle Price API",
-    version: "1.2.0",
+    version: "1.2.1",
     base_url: PUBLIC_BASE_URL,
     endpoints: {
       prices: "/api/v1/prices",
@@ -1139,6 +1215,11 @@ app.get("/api/v1/gold", async (req, res) => {
       ok: true,
       type: "gold",
       count: items.length,
+      provider: data.provider,
+      failover_used: data.failover_used,
+      coverage_partial: data.coverage_partial,
+      primary_error: data.primary_error || null,
+      sources: data.sources,
       source: data.source,
       source_updated_at: data.source_updated_at,
       fetched_at: data.fetched_at,
@@ -1152,35 +1233,49 @@ app.get("/api/v1/gold", async (req, res) => {
 });
 
 app.get("/api/v1/prices", async (req, res) => {
-  try {
-    const [currencies, gold] = await Promise.all([getCurrencies(), getGold()]);
-
-    res.json({
-      ok: true,
-      fetched_at: new Date().toISOString(),
-      currencies: {
-        count: currencies.items.length,
-        provider: currencies.provider,
-        failover_used: currencies.failover_used,
-        coverage_augmented: currencies.coverage_augmented,
-        source: currencies.source,
-        sources: currencies.sources,
-        source_updated_at: currencies.source_updated_at,
-        cache: currencies.cache,
-        data: currencies.items
-      },
-      gold: {
-        count: gold.items.length,
-        source: gold.source,
-        source_updated_at: gold.source_updated_at,
-        cache: gold.cache,
-        data: gold.items
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    jsonError(res, 502, "UPSTREAM_ERROR", "Could not fetch or parse upstream prices.");
+  const [currencyResult, goldResult] = await Promise.allSettled([getCurrencies(), getGold()]);
+  const currenciesOk = currencyResult.status === "fulfilled";
+  const goldOk = goldResult.status === "fulfilled";
+  if (!currenciesOk) console.error("Currency prices unavailable:", currencyResult.reason);
+  if (!goldOk) console.error("Gold prices unavailable:", goldResult.reason);
+  if (!currenciesOk && !goldOk) {
+    return jsonError(res, 502, "UPSTREAM_ERROR", "No price sources currently available.");
   }
+  const currencies = currenciesOk ? currencyResult.value : null;
+  const gold = goldOk ? goldResult.value : null;
+  res.json({
+    ok: true,
+    partial: !currenciesOk || !goldOk,
+    failed_sections: [
+      ...(!currenciesOk ? ["currencies"] : []),
+      ...(!goldOk ? ["gold"] : [])
+    ],
+    fetched_at: new Date().toISOString(),
+    currencies: currencies ? {
+      ok: true,
+      count: currencies.items.length,
+      provider: currencies.provider,
+      failover_used: currencies.failover_used,
+      coverage_augmented: currencies.coverage_augmented,
+      source: currencies.source,
+      sources: currencies.sources,
+      source_updated_at: currencies.source_updated_at,
+      cache: currencies.cache,
+      data: currencies.items
+    } : {ok:false, count:0, data:[], error:{code:"UPSTREAM_ERROR",message:"Currency prices unavailable"}},
+    gold: gold ? {
+      ok: true,
+      count: gold.items.length,
+      provider: gold.provider,
+      failover_used: gold.failover_used,
+      coverage_partial: gold.coverage_partial,
+      source: gold.source,
+      sources: gold.sources,
+      source_updated_at: gold.source_updated_at,
+      cache: gold.cache,
+      data: gold.items
+    } : {ok:false, count:0, data:[], error:{code:"UPSTREAM_ERROR",message:"Gold prices unavailable"}}
+  });
 });
 
 app.use((req, res) => {

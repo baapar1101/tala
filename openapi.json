@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Shoogle Price API",
-    "version": "1.2.0",
-    "description": "Shoogle JSON API for Iranian fiat currency, cryptocurrency, physical gold and coin spot prices, with source-attributed historical charts, verified fallbacks, and API documentation."
+    "version": "1.2.1",
+    "description": "Shoogle JSON API for Iranian fiat currency, cryptocurrency, physical gold and coin spot prices, with source-attributed historical charts, verified fallbacks, and API documentation. Spot quotes have verified fallback providers, and combined prices support partial results when one category is unavailable."
   },
   "servers": [
     {
@@ -41,11 +41,49 @@
         ],
         "responses": {
           "200": {
-            "description": "Combined price response",
+            "description": "Combined prices; HTTP 200 with partial=true and failed_sections when only one market category is available. Returns 502 only when both currency and gold fail.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "partial",
+                    "failed_sections",
+                    "currencies",
+                    "gold"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "partial": {
+                      "type": "boolean"
+                    },
+                    "failed_sections": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "currencies",
+                          "gold"
+                        ]
+                      }
+                    },
+                    "fetched_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "currencies": {
+                      "type": "object",
+                      "description": "Data array when available, or ok=false with empty data and an error code."
+                    },
+                    "gold": {
+                      "type": "object",
+                      "description": "Data array when available, or ok=false with empty data and an error code."
+                    }
+                  }
                 }
               }
             }
@@ -119,7 +157,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Gold and coin prices",
+            "description": "Gold and coin prices from Alanchand with verified ArzDigital latest-chart observation and TGJU daily close fallbacks. Fallback observations include last_updated_at and price_mode=last_observed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -616,6 +654,20 @@
           },
           "raw": {
             "type": "object"
+          },
+          "source_provider": {
+            "type": "string"
+          },
+          "last_updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "price_mode": {
+            "type": "string",
+            "description": "last_observed for chart-derived spot fallback; not an executable bid/ask quote."
+          },
+          "chart_available": {
+            "type": "boolean"
           }
         }
       },
@@ -736,6 +788,27 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GoldItem"
+            }
+          },
+          "provider": {
+            "type": "string"
+          },
+          "failover_used": {
+            "type": "boolean"
+          },
+          "coverage_partial": {
+            "type": "boolean"
+          },
+          "primary_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object"
             }
           }
         }

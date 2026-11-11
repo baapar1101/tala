@@ -33,6 +33,13 @@ The GitHub repository contains the default self-hosted PUBLIC_BASE_URL. Vercel o
 
 Supported historical ranges: `1d`, `7d`, `1m`, `3m`, `6m`, `1y`, `all`. The historical endpoint returns `symbol`, `name`, `kind`, `unit`, `range`, `source`, `provider`, `count`, `summary` (first, last, min, max, change_percent) and `data` (timestamp_ms, ISO timestamp, price). All historical values are source observations, not generated points.
 
+## Spot-price resilience
+
+- The live gold/coin API first parses Alanchand. If its table is unavailable, it uses the most recent verified observation from the ArzDigital Muninn physical-gold/coin asset IDs (first 1d, then 7d). For mapped core assets, TGJU dated daily closing prices are the final fallback.
+- Chart-derived spot fallbacks are reported in Toman with source_provider, source, last_updated_at, and price_mode: "last_observed"; quotes older than 72 hours are rejected. Do not represent them as live executable bids or fabricate values for assets with no observation. failover_used and coverage_partial indicate source and symbol coverage.
+- The combined GET /api/v1/prices uses independent currency/gold requests. When only one succeeds, it returns HTTP 200, ok: true, partial: true, a failed_sections array, and the failing section with ok:false, data:[] and UPSTREAM_ERROR. It returns 502 only if both categories fail.
+- The GitHub Pages dashboard fetches /api/v1/currencies, /api/v1/gold, and /api/v1/crypto independently, preserves each category's last successful data, and explicitly indicates partial connectivity rather than hiding healthy categories.
+
 ## Historical provider order
 
 - **Fiat currencies:** ArzDigital fiat metadata plus Muninn chart for the verified fiat asset ID.
