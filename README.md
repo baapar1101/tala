@@ -225,3 +225,10 @@ The fiat metadata endpoint returns the complete upstream fiat fields, including 
 - **Vercel:** `https://mark-price.vercel.app` is the separate Vercel deployment of the same repository. Set `PUBLIC_BASE_URL=https://mark-price.vercel.app` in Vercel project environment variables.
 
 Do not point `price.shoogle.ir` to Vercel or configure it as a Vercel project domain. The server and Vercel deployments have separate infrastructure and public URLs.
+
+## Deployment and maintenance
+
+- GitHub Pages publishes main:/ (root). Keep index.html and docs/index.html identical; npm test checks that.
+- Backend uses https://mark-price.vercel.app on the existing Vercel project. The private server https://price.shoogle.ir is independent.
+- History archive: .github/workflows/market-history.yml collects real observations hourly from /api/v1/gold and /api/v1/crypto APIs and commits only to the isolated market-history branch. Check the Actions run for success; failures do not erase existing snapshots.
+- Tests: npm install && npm test or the Test Shoogle GitHub Actions workflow. The OpenAPI docs use relative / for Try it out on whichever host serves them.

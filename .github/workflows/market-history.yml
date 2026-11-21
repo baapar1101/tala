@@ -3,6 +3,12 @@ on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/market-history.yml"
+      - "scripts/collect-history.mjs"
+      - "scripts/market-collector-core.mjs"
 permissions:
   contents: write
 concurrency:
@@ -12,21 +18,30 @@ jobs:
   collect:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Checkout current collector
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Checkout isolated archive
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: market-history
+          path: archive
           persist-credentials: true
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
-      - run: node scripts/collect-history.mjs
-      - name: Commit valid snapshots
+      - name: Validate collector
+        run: node --test test/collector.test.mjs
+      - name: Collect prices from working Shoogle APIs
+        run: node scripts/collect-history.mjs archive/data/market-history.json
+      - name: Commit only archive branch
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/market-history.json
-          if ! git diff --cached --quiet; then
-            git commit -m "data: collect hourly real crypto and gold prices"
-            git push
+          git -C archive config user.name "github-actions[bot]"
+          git -C archive config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C archive add data/market-history.json
+          if ! git -C archive diff --cached --quiet; then
+            git -C archive commit -m "data: archive verified hourly market quotes"
+            git -C archive push origin HEAD:market-history
           fi

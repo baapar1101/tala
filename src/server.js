@@ -742,13 +742,13 @@ app.use(apiKeyMiddleware);
 
 const openapiPath = path.join(__dirname, "..", "openapi.json");
 const openapi = JSON.parse(fs.readFileSync(openapiPath, "utf8"));
-openapi.servers = [{ url: PUBLIC_BASE_URL }];
+openapi.servers = [{ url: "/", description: "Current host (recommended)" }, { url: PUBLIC_BASE_URL, description: "Configured deployment" }];
 
 app.get("/", (req, res) => {
   res.json({
     ok: true,
     name: "Shoogle Price API",
-    version: "1.2.1",
+    version: "1.2.2",
     base_url: PUBLIC_BASE_URL,
     endpoints: {
       prices: "/api/v1/prices",

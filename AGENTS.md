@@ -72,3 +72,11 @@ Keep `source`, `provider`, `unit`, `timestamp`, and `fetched_at` with any quoted
 The API is public when `API_KEYS` is empty. When configured, send `x-api-key` on protected API requests; health, root metadata, OpenAPI and Swagger documentation are public. Cross-origin reads are enabled by CORS. The in-memory cache and rate limit are per Vercel function instance, not distributed.
 
 For the authoritative operation definitions and schemas, consult `/openapi.json`.
+
+## Reliability and test pipeline
+
+- GitHub Pages publishes from main branch root (/). The root index.html and docs/index.html must remain byte-for-byte identical; CI validates them.
+- The hourly collector loads current code from main, fetches real /api/v1/crypto and /api/v1/gold price observations, and commits JSON snapshots only to market-history (avoiding hourly production builds).
+- It records actual source and observation timestamp, rejects nonpositive/invalid values and gold older than 72 hours, preserves prior observations, and tolerates one category being unavailable without inventing data. It fails if all categories fail.
+- Run npm test to validate source failure tolerance, archive retention, combined API partial-failure behavior, gold fallback and synchronized GitHub Pages entrypoints. GitHub Actions CI runs tests on main changes and pull requests.
+- OpenAPI uses same-origin / as the preferred server, so Swagger Try it out targets the current host whether hosted on Vercel or a private server.

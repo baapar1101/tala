@@ -2,12 +2,21 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Shoogle Price API",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "description": "Shoogle JSON API for Iranian fiat currency, cryptocurrency, physical gold and coin spot prices, with source-attributed historical charts, verified fallbacks, and API documentation. Spot quotes have verified fallback providers, and combined prices support partial results when one category is unavailable."
   },
   "servers": [
     {
-      "url": "https://price.shoogle.ir"
+      "url": "/",
+      "description": "Current host (Vercel or self-hosted)"
+    },
+    {
+      "url": "https://mark-price.vercel.app",
+      "description": "Vercel backend"
+    },
+    {
+      "url": "https://price.shoogle.ir",
+      "description": "Self-hosted backend"
     }
   ],
   "paths": {
