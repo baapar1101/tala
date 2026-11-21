@@ -15,14 +15,14 @@ const read=async path=>{
   const response=await nativeFetch(url(path));
   return {status:response.status, body:await response.json()};
 };
-const fiatResponse={data:[{id:3,symbol:"USD",name:"US Dollar",fa_name:"دلار آمریکا",
+const fiatResponse={status:"success",data:[{id:3,symbol:"USD",name:"US Dollar",fa_name:"دلار آمریکا",
   toman:200000,usd:1,last_updated_at:new Date().toISOString()}]};
 const mocked=({goldChart=false}={})=>async uri=>{
   const target=String(uri);
   if(target.includes("lake.arzdigital.com"))return new Response(JSON.stringify(fiatResponse),
     {status:200,headers:{"content-type":"application/json"}});
   if(goldChart && target.includes("gw.arzdigital.com/muninn/v1/chart")) {
-    return new Response(JSON.stringify({data:[[Date.now()-60000,100,200000,0]]}),
+    return new Response(JSON.stringify({status:"success",data:[[Date.now()-60000,100,200000,0]]}),
       {status:200,headers:{"content-type":"application/json"}});
   }
   return new Response("unavailable",{status:503});
