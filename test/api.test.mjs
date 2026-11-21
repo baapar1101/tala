@@ -1,6 +1,7 @@
 import {test, after} from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import vm from "node:vm";
 
 process.env.VERCEL="1";
 process.env.API_KEYS="";
@@ -63,4 +64,11 @@ test("gold fallback exposes verified source, timestamp and price mode",async()=>
 });
 test("GitHub Pages root and docs copies stay identical",()=>{
   assert.equal(fs.readFileSync("index.html","utf8"),fs.readFileSync("docs/index.html","utf8"));
+});
+
+test("inline dashboard scripts are valid JavaScript",()=>{
+  const html=fs.readFileSync("index.html","utf8");
+  const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
+  assert.ok(scripts.length>=2);
+  for(const [,source] of scripts)new vm.Script(source);
 });
